@@ -43,6 +43,7 @@ class MultiGRNBatch(db.Model):
     sap_session_metadata = db.Column(db.Text)
     error_log = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_by = db.Column(db.Text)
     posted_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     submitted_at = db.Column(db.DateTime)

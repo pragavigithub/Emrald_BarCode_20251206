@@ -1,20 +1,17 @@
 {% extends "base.html" %}
 
+{% block head %}
+<!--<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />-->
+<!--<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />-->
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between mb-4">
         <h2><i class="fas fa-boxes"></i> Multiple GRN Creation</h2>
-        <a href="{{ url_for('multi_grn.create_step1_customer') }}" class="btn btn-primary">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createGrnModal">
             <i class="fas fa-plus"></i> Create GRN
-        </a>
-<!-- {% if current_user.has_permission('grpo') %}-->
-<!--                    <a  href="{{ url_for('grpo') }}" class="btn btn-primary">-->
-<!--                        <i class="fas fa-plus"></i> GRN-->
-<!--                    </a>-->
-<!--                {% endif %}-->
-<!--    </div>-->
-
-
+        </button>
     </div>
 
     <!-- Filters -->
@@ -282,6 +279,91 @@
     </div>
 </div>
 
+<!-- Create GRN Modal -->
+<div class="modal fade" id="createGrnModal" tabindex="-1" aria-labelledby="createGrnModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="createGrnModalLabel"><i class="fas fa-file-invoice"></i> Create GRN - Select Customer & Purchase Orders</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Customer Selection -->
+                <div id="step1Container" class="mb-4">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-user"></i> Step 1: Select Customer</h6>
+                    <div class="mb-3">
+                        <label for="customerDropdown" class="form-label">Customer (CardCode) *</label>
+                        <select class="form-select" id="customerDropdown" style="width: 100%;">
+                            <option value="">-- Select Customer --</option>
+                        </select>
+                        <div id="customerLoadingMessage" class="text-muted mt-2" style="display: none;">
+                            <span class="spinner-border spinner-border-sm me-2"></span>Loading customers from open POs...
+                        </div>
+                        <div id="customerErrorMessage" class="text-danger mt-2" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <!-- Step 2: PO Selection (Hidden initially) -->
+                <div id="step2Container" style="display: none;">
+                    <h6 class="fw-bold mb-3"><i class="fas fa-file-alt"></i> Step 2: Select Purchase Orders</h6>
+                    <div id="poLoadingMessage" class="text-muted mb-3" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading Purchase Orders...
+                    </div>
+                    <div id="poErrorMessage" class="text-danger mb-3" style="display: none;"></div>
+                    
+                    <!-- PO Selection Table -->
+                    <div id="poTableContainer" style="display: none;">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAllPOs">
+                                <label class="form-check-label" for="selectAllPOs">Select All</label>
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-sm" id="poTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="headerSelectAll"></th>
+                                        <th>PO Number</th>
+                                        <th>Card Code</th>
+                                        <th>Card Name</th>
+                                        <th>Doc Date</th>
+                                        <th>Due Date</th>
+                                        <th>Total</th>
+                                        <th>Series</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="poTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="selectedPOsInfo" class="alert alert-info mt-3" style="display: none;">
+                            <strong>Selected:</strong> <span id="selectedPOCount">0</span> Purchase Order(s)
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Hidden form fields -->
+                <form id="createGrnForm" method="POST" action="{{ url_for('multi_grn.create_grn_from_modal') }}">
+                    <input type="hidden" name="series_id" id="hiddenSeriesId">
+                    <input type="hidden" name="series_name" id="hiddenSeriesName">
+                    <input type="hidden" name="customer_code" id="hiddenCustomerCode">
+                    <input type="hidden" name="customer_name" id="hiddenCustomerName">
+                    <input type="hidden" name="selected_po_entries" id="hiddenSelectedPOs">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="proceedBtn" disabled onclick="proceedToStep2()">
+                    <i class="fas fa-arrow-right"></i> Next: Select Lines
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!--<script>http://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js</script>-->
 <script>
 let currentBatchId = null;
 
@@ -402,6 +484,292 @@ function rejectGRN() {
     .catch(error => {
         alert('Network error: ' + error.message);
     });
+}
+
+// Create GRN Modal - Variables
+let selectedCustomerCode = null;
+let selectedCustomerName = null;
+let selectedPOs = [];
+let allPurchaseOrders = [];
+
+// Initialize Create GRN Modal
+document.addEventListener('DOMContentLoaded', function() {
+    const createGrnModal = document.getElementById('createGrnModal');
+    
+    createGrnModal.addEventListener('shown.bs.modal', function() {
+        initializeCustomerDropdown();
+    });
+    
+    createGrnModal.addEventListener('hidden.bs.modal', function() {
+        resetModalState();
+    });
+    
+    // Select All POs checkbox
+    document.getElementById('selectAllPOs').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#poTableBody input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+        });
+        document.getElementById('headerSelectAll').checked = this.checked;
+        updateSelectedPOs();
+    });
+    
+    document.getElementById('headerSelectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#poTableBody input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+        });
+        document.getElementById('selectAllPOs').checked = this.checked;
+        updateSelectedPOs();
+    });
+});
+
+function initializeCustomerDropdown() {
+    const customerDropdown = $('#customerDropdown');
+    const customerLoadingMessage = $('#customerLoadingMessage');
+    const customerErrorMessage = $('#customerErrorMessage');
+
+     if (customerDropdown.hasClass("select2-hidden-accessible")) {
+        customerDropdown.select2('destroy');
+    }
+    // Initialize Select2
+    customerDropdown.select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Select a Customer',
+        allowClear: true,
+        width: '100%',
+        dropdownParent: $('#createGrnModal')
+    });
+    
+    // Load customers from open POs
+    customerLoadingMessage.show();
+    customerErrorMessage.hide();
+    
+    fetch('/multi-grn/api/customers-from-open-pos')
+        .then(response => response.json())
+        .then(data => {
+        console.log
+            customerLoadingMessage.hide();
+            
+            if (data.success && data.customers) {
+                customerDropdown.empty();
+                customerDropdown.append(new Option('-- Select Customer --', '', true, true));
+                
+                data.customers.forEach(customer => {
+                    const option = new Option(
+                        `${customer.CardName} (${customer.CardCode})`,
+                        customer.CardCode,
+                        false,
+                        false
+                    );
+                    $(option).data('customer-name', customer.CardName);
+                    customerDropdown.append(option);
+                });
+                
+                customerDropdown.trigger('change');
+                console.log(`Loaded ${data.customers.length} customers from open POs`);
+            } else {
+                customerErrorMessage.text('Failed to load customers: ' + (data.error || 'Unknown error'));
+                customerErrorMessage.show();
+            }
+        })
+        .catch(err => {
+            customerLoadingMessage.hide();
+            customerErrorMessage.text('Error loading customers: ' + err.message);
+            customerErrorMessage.show();
+            console.error('Error loading customers:', err);
+        });
+    
+    // Handle customer selection
+    customerDropdown.on('change', function() {
+        const selectedCode = $(this).val();
+        const selectedOption = $(this).find('option:selected');
+        const selectedName = selectedOption.data('customer-name') || '';
+        
+        if (selectedCode) {
+            selectedCustomerCode = selectedCode;
+            selectedCustomerName = selectedName;
+            
+            // Update hidden fields
+            $('#hiddenCustomerCode').val(selectedCustomerCode);
+            $('#hiddenCustomerName').val(selectedCustomerName);
+            
+            // Load POs for selected customer
+            loadPOsForCustomer(selectedCode);
+        } else {
+            selectedCustomerCode = null;
+            selectedCustomerName = null;
+            $('#step2Container').hide();
+            $('#proceedBtn').prop('disabled', true);
+        }
+    });
+}
+
+function loadPOsForCustomer(cardCode) {
+    const step2Container = $('#step2Container');
+    const poLoadingMessage = $('#poLoadingMessage');
+    const poErrorMessage = $('#poErrorMessage');
+    const poTableContainer = $('#poTableContainer');
+    const poTableBody = $('#poTableBody');
+    
+    step2Container.show();
+    poLoadingMessage.show();
+    poErrorMessage.hide();
+    poTableContainer.hide();
+    
+    fetch(`/multi-grn/api/pos-by-cardcode/${encodeURIComponent(cardCode)}`)
+        .then(response => response.json())
+        .then(data => {
+            poLoadingMessage.hide();
+            
+            if (data.success && data.purchase_orders) {
+                allPurchaseOrders = data.purchase_orders;
+                
+                if (allPurchaseOrders.length === 0) {
+                    poErrorMessage.text('No open Purchase Orders found for this customer.');
+                    poErrorMessage.show();
+                    return;
+                }
+                
+                // Populate table
+                poTableBody.empty();
+                allPurchaseOrders.forEach((po, index) => {
+                    const docDate = po.DocDate ? new Date(po.DocDate).toLocaleDateString() : '-';
+                    const dueDate = po.DocDueDate ? new Date(po.DocDueDate).toLocaleDateString() : '-';
+                    const docTotal = po.DocTotal ? parseFloat(po.DocTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00';
+                    
+                    const row = `
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input po-checkbox" 
+                                       data-index="${index}" 
+                                       data-docentry="${po.DocEntry}"
+                                       data-docnum="${po.DocNum}"
+                                       data-cardcode="${po.CardCode}"
+                                       data-cardname="${po.CardName}"
+                                       data-docdate="${po.DocDate || ''}"
+                                       data-doctotal="${po.DocTotal || 0}"
+                                       data-series="${po.Series || ''}"
+                                       onchange="updateSelectedPOs()">
+                            </td>
+                            <td><strong>${po.DocNum}</strong></td>
+                            <td>${po.CardCode}</td>
+                            <td>${po.CardName}</td>
+                            <td>${docDate}</td>
+                            <td>${dueDate}</td>
+                            <td class="text-end">${docTotal}</td>
+                            <td>${po.Series || '-'}</td>
+                        </tr>
+                    `;
+                    poTableBody.append(row);
+                });
+                
+                poTableContainer.show();
+                console.log(`Loaded ${allPurchaseOrders.length} POs for CardCode ${cardCode}`);
+            } else {
+                poErrorMessage.text('Failed to load Purchase Orders: ' + (data.error || 'Unknown error'));
+                poErrorMessage.show();
+            }
+        })
+        .catch(err => {
+            poLoadingMessage.hide();
+            poErrorMessage.text('Error loading Purchase Orders: ' + err.message);
+            poErrorMessage.show();
+            console.error('Error loading POs:', err);
+        });
+}
+
+function updateSelectedPOs() {
+    const checkboxes = document.querySelectorAll('#poTableBody input[type="checkbox"]:checked');
+    selectedPOs = [];
+    
+    checkboxes.forEach(cb => {
+        selectedPOs.push({
+            DocEntry: parseInt(cb.dataset.docentry),
+            DocNum: cb.dataset.docnum,
+            CardCode: cb.dataset.cardcode,
+            CardName: cb.dataset.cardname,
+            DocDate: cb.dataset.docdate,
+            DocTotal: parseFloat(cb.dataset.doctotal) || 0,
+            Series: cb.dataset.series
+        });
+    });
+    
+    const selectedInfo = $('#selectedPOsInfo');
+    const selectedCount = $('#selectedPOCount');
+    const proceedBtn = $('#proceedBtn');
+    
+    if (selectedPOs.length > 0) {
+        selectedCount.text(selectedPOs.length);
+        selectedInfo.show();
+        proceedBtn.prop('disabled', false);
+        
+        // Set Series from first selected PO
+        if (selectedPOs[0].Series) {
+            $('#hiddenSeriesId').val(selectedPOs[0].Series);
+            $('#hiddenSeriesName').val('Series-' + selectedPOs[0].Series);
+        }
+    } else {
+        selectedInfo.hide();
+        proceedBtn.prop('disabled', true);
+    }
+    
+    // Update Select All checkbox state
+    const allCheckboxes = document.querySelectorAll('#poTableBody input[type="checkbox"]');
+    const allSelected = allCheckboxes.length > 0 && allCheckboxes.length === checkboxes.length;
+    document.getElementById('selectAllPOs').checked = allSelected;
+    document.getElementById('headerSelectAll').checked = allSelected;
+}
+
+function proceedToStep2() {
+    if (selectedPOs.length === 0) {
+        alert('Please select at least one Purchase Order');
+        return;
+    }
+    
+    if (!selectedCustomerCode) {
+        alert('Please select a customer');
+        return;
+    }
+    
+    // Populate hidden field with full PO summaries (not just DocEntries)
+    // This allows backend to hydrate PO links without extra SAP calls
+    document.getElementById('hiddenSelectedPOs').value = JSON.stringify(selectedPOs);
+    
+    // Submit the form to create batch and go to step 2
+    const form = document.getElementById('createGrnForm');
+    form.submit();
+}
+
+function resetModalState() {
+    selectedCustomerCode = null;
+    selectedCustomerName = null;
+    selectedPOs = [];
+    allPurchaseOrders = [];
+    
+    // Reset dropdowns and containers
+    const customerDropdown = $('#customerDropdown');
+    if (customerDropdown.hasClass('select2-hidden-accessible')) {
+        customerDropdown.val('').trigger('change');
+        customerDropdown.select2('destroy');
+    }
+    customerDropdown.empty();
+    customerDropdown.append(new Option('-- Select Customer --', '', true, true));
+    
+    $('#step2Container').hide();
+    $('#poTableBody').empty();
+    $('#selectedPOsInfo').hide();
+    $('#proceedBtn').prop('disabled', true);
+    
+    // Reset hidden fields
+    $('#hiddenSeriesId').val('');
+    $('#hiddenSeriesName').val('');
+    $('#hiddenCustomerCode').val('');
+    $('#hiddenCustomerName').val('');
+    
+    // Reset checkboxes
+    $('#selectAllPOs').prop('checked', false);
+    $('#headerSelectAll').prop('checked', false);
 }
 </script>
 {% endblock %}

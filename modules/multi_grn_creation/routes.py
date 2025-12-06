@@ -183,7 +183,7 @@ def edit_batch(batch_id):
         
         # Set edit mode in session
         session['editing_batch_id'] = batch_id
-        
+
         logging.info(f"✏️ User {current_user.username} editing draft batch {batch.batch_number}")
         flash(f'Editing batch {batch.batch_number} - You can modify PO selection, line items, and QR labels', 'info')
         
@@ -324,11 +324,103 @@ def create_step1_customer():
 @login_required
 def create_step2_select_pos(batch_id):
     """Step 2: Select Purchase Orders"""
+    from flask import session as flask_session
+    
     batch = MultiGRNBatch.query.get_or_404(batch_id)
     
     if batch.user_id != current_user.id:
         flash('Access denied', 'error')
         return redirect(url_for('multi_grn.index'))
+    
+    # Check if we have pre-selected PO summaries from the modal flow
+    modal_selected_po_summaries = flask_session.get('multi_grn_selected_po_summaries', None)
+    
+    if modal_selected_po_summaries:
+        # Auto-add POs from modal selection using full summaries (no extra SAP calls needed)
+        # Pre-populate existing_po_entries from database to avoid duplicates
+        existing_po_entries = {po_link.po_doc_entry for po_link in batch.po_links}
+        
+        added_count = 0
+        failed_count = 0
+        skipped_count = 0
+        
+        for po_data in modal_selected_po_summaries:
+            doc_entry = po_data.get('DocEntry')
+            
+            # Skip duplicates (both in-memory and from database)
+            if doc_entry in existing_po_entries:
+                skipped_count += 1
+                continue
+            
+            try:
+                # Parse DocDate if present
+                doc_date = None
+                if po_data.get('DocDate'):
+                    try:
+                        doc_date = datetime.strptime(str(po_data.get('DocDate'))[:10], '%Y-%m-%d').date()
+                    except (ValueError, TypeError):
+                        pass
+                
+                po_link = MultiGRNPOLink(
+                    batch_id=batch.id,
+                    po_doc_entry=doc_entry,
+                    po_doc_num=po_data.get('DocNum'),
+                    po_card_code=po_data.get('CardCode'),
+                    po_card_name=po_data.get('CardName'),
+                    po_doc_date=doc_date,
+                    po_doc_total=Decimal(str(po_data.get('DocTotal', 0))),
+                    status='selected'
+                )
+                # Use relationship append for proper ORM state management
+                batch.po_links.append(po_link)
+                existing_po_entries.add(doc_entry)
+                added_count += 1
+                logging.info(f"✅ Auto-added PO {po_data.get('DocNum')} from modal selection")
+            except Exception as e:
+                failed_count += 1
+                logging.error(f"❌ Error adding PO {doc_entry}: {str(e)}")
+        
+        if added_count > 0:
+            # Compute total_pos before commit (from current state + new additions)
+            current_link_count = len([l for l in batch.po_links])  # Force evaluation
+            
+            # Commit the changes
+            db.session.commit()
+            
+            # Update total_pos using the count we computed before commit
+            batch.total_pos = current_link_count
+            db.session.commit()
+            
+            # Reload the batch with eager loading to ensure po_links is populated for template
+            from sqlalchemy.orm import selectinload
+            batch = MultiGRNBatch.query.options(selectinload(MultiGRNBatch.po_links)).get(batch_id)
+            
+            if failed_count > 0:
+                flash(f'Added {added_count} Purchase Order(s). Failed to add {failed_count} PO(s).', 'warning')
+            elif skipped_count > 0:
+                flash(f'Added {added_count} Purchase Order(s). Skipped {skipped_count} duplicate(s).', 'success')
+            else:
+                flash(f'Successfully loaded {added_count} Purchase Order(s) from your selection. Please confirm and proceed to line selection.', 'success')
+            
+            # Clear modal session data only after successful processing
+            flask_session.pop('multi_grn_selected_po_summaries', None)
+            flask_session.pop('multi_grn_customer_code', None)
+            flask_session.pop('multi_grn_customer_name', None)
+            flask_session.pop('multi_grn_series_id', None)
+            flask_session.pop('multi_grn_series_name', None)
+            flask_session.pop('multi_grn_batch_id', None)
+        elif skipped_count > 0 and failed_count == 0:
+            # All POs were duplicates - clear session and continue
+            flash(f'All {skipped_count} selected PO(s) are already in this batch.', 'info')
+            flask_session.pop('multi_grn_selected_po_summaries', None)
+            flask_session.pop('multi_grn_customer_code', None)
+            flask_session.pop('multi_grn_customer_name', None)
+            flask_session.pop('multi_grn_series_id', None)
+            flask_session.pop('multi_grn_series_name', None)
+            flask_session.pop('multi_grn_batch_id', None)
+        elif failed_count > 0:
+            flash(f'Failed to add {failed_count} Purchase Order(s). Please try again or select different POs.', 'danger')
+            # Don't clear session data so user can retry
     
     if request.method == 'POST':
         selected_pos = request.form.getlist('selected_pos[]')
@@ -401,6 +493,11 @@ def create_step2_select_pos(batch_id):
     
     purchase_orders = result.get('purchase_orders', [])
     logging.info(f"📊 Found {len(purchase_orders)} open POs for customer {batch.customer_name} ({batch.customer_code})")
+    
+    # Ensure batch is freshly loaded with po_links for template rendering
+    from sqlalchemy.orm import selectinload
+    batch = MultiGRNBatch.query.options(selectinload(MultiGRNBatch.po_links)).get(batch_id)
+    
     return render_template('multi_grn/step2_select_pos.html', batch=batch, purchase_orders=purchase_orders)
 
 @multi_grn_bp.route('/create/step3/<int:batch_id>', methods=['GET', 'POST'])
@@ -1663,6 +1760,127 @@ def api_cardcode_by_series(series_id):
         return jsonify({'success': False, 'error': result.get('error')}), 500
     
     return jsonify({'success': True, 'cardcodes': result.get('cardcodes', [])})
+
+@multi_grn_bp.route('/api/customers-from-open-pos')
+@login_required
+def api_customers_from_open_pos():
+    """API endpoint to fetch unique CardCode/CardName from open Purchase Orders"""
+    sap_service = SAPMultiGRNService()
+    result = sap_service.fetch_customers_from_open_pos()
+    
+    if not result['success']:
+        return jsonify({'success': False, 'error': result.get('error')}), 500
+    
+    return jsonify({'success': True, 'customers': result.get('customers', [])})
+
+@multi_grn_bp.route('/create-grn-from-modal', methods=['POST'])
+@login_required
+def create_grn_from_modal():
+    """
+    Handle the new Multi GRN creation flow from the modal popup.
+    Creates a GRN batch and redirects to step 2 (line item selection)
+    """
+    import json as json_module
+    from flask import session
+    
+    series_id = request.form.get('series_id', '')
+    series_name = request.form.get('series_name', '')
+    customer_code = request.form.get('customer_code', '')
+    customer_name = request.form.get('customer_name', '')
+    selected_pos_json = request.form.get('selected_po_entries', '[]')
+    
+    # Parse and validate PO summaries
+    try:
+        selected_po_summaries = json_module.loads(selected_pos_json)
+        
+        # Validate structure: must be a list of dicts with required keys
+        if not isinstance(selected_po_summaries, list):
+            raise ValueError("PO data must be a list")
+        
+        required_keys = {'DocEntry', 'DocNum', 'CardCode'}
+        for idx, po in enumerate(selected_po_summaries):
+            if not isinstance(po, dict):
+                raise ValueError(f"PO at index {idx} is not a valid object")
+            missing = required_keys - set(po.keys())
+            if missing:
+                raise ValueError(f"PO at index {idx} missing required fields: {missing}")
+            if not po.get('DocEntry'):
+                raise ValueError(f"PO at index {idx} has invalid DocEntry")
+                
+    except json_module.JSONDecodeError as e:
+        flash(f'Invalid PO selection data: {str(e)}', 'danger')
+        return redirect(url_for('multi_grn.index'))
+    except ValueError as e:
+        flash(f'Invalid PO data format: {str(e)}', 'danger')
+        return redirect(url_for('multi_grn.index'))
+    
+    if not customer_code or not selected_po_summaries:
+        flash('Please select a customer and at least one Purchase Order', 'warning')
+        return redirect(url_for('multi_grn.index'))
+    
+    # Store full PO summaries in session for step 2 hydration
+    session['multi_grn_customer_code'] = customer_code
+    session['multi_grn_customer_name'] = customer_name
+    session['multi_grn_series_id'] = series_id
+    session['multi_grn_series_name'] = series_name
+    session['multi_grn_selected_po_summaries'] = selected_po_summaries
+    
+    # Create a new GRN batch
+    try:
+        # Cast series_id to int or None to match model's expected type
+        series_id_int = int(series_id) if series_id and series_id.isdigit() else None
+        from datetime import datetime
+        batch_number = f"MGRN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        new_batch = MultiGRNBatch(
+            batch_number=batch_number,
+            series_id=series_id_int,
+            series_name=series_name if series_name else None,
+            customer_code=customer_code,
+            customer_name=customer_name,
+            status='draft',
+            user_id=current_user.id,
+            created_by=current_user.username
+        )
+        db.session.add(new_batch)
+        db.session.commit()
+        
+        logging.info(f"✅ Created new GRN batch: {new_batch.batch_number} for customer {customer_code}")
+        
+        # Store batch_id in session
+        session['multi_grn_batch_id'] = new_batch.id
+        
+        # Redirect to step 2 - PO selection with the selected POs
+        return redirect(url_for('multi_grn.create_step2_select_pos', batch_id=new_batch.id))
+        
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"❌ Error creating GRN batch: {str(e)}")
+        flash(f'Error creating GRN batch: {str(e)}', 'danger')
+        return redirect(url_for('multi_grn.index'))
+
+@multi_grn_bp.route('/api/pos-by-cardcode/<card_code>')
+@login_required
+def api_pos_by_cardcode(card_code):
+    """API endpoint to fetch open Purchase Orders filtered by CardCode"""
+    sap_service = SAPMultiGRNService()
+    result = sap_service.fetch_pos_by_cardcode(card_code)
+    
+    if not result['success']:
+        return jsonify({'success': False, 'error': result.get('error')}), 500
+    
+    return jsonify({'success': True, 'purchase_orders': result.get('purchase_orders', [])})
+
+@multi_grn_bp.route('/api/po-lines/<int:doc_entry>')
+@login_required
+def api_po_lines(doc_entry):
+    """API endpoint to fetch PO line items by DocEntry"""
+    sap_service = SAPMultiGRNService()
+    result = sap_service.fetch_po_lines_by_docentry(doc_entry)
+    
+    if not result['success']:
+        return jsonify({'success': False, 'error': result.get('error')}), 500
+    
+    return jsonify({'success': True, 'purchase_order': result.get('purchase_order', {})})
 
 @multi_grn_bp.route('/api/pos-by-series-and-card')
 @login_required

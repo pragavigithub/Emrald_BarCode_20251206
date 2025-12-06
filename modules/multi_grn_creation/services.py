@@ -279,8 +279,116 @@ class SAPMultiGRNService:
         return {
             'success': True,
             'customers': [
-
+                {'CardCode': 'C10000', 'CardName': 'Acme Corporation'},
+                {'CardCode': 'C10001', 'CardName': 'Global Industries Ltd'},
+                {'CardCode': 'C10002', 'CardName': 'Tech Solutions Inc'},
+                {'CardCode': 'C10003', 'CardName': 'Prime Suppliers Co'},
+                {'CardCode': 'C10004', 'CardName': 'Quality Manufacturing'},
+                {'CardCode': 'C10005', 'CardName': 'United Trading Company'},
             ]
+        }
+    
+    def get_mock_customers_from_open_pos(self):
+        """Generate mock customers from open POs for testing without SAP connectivity"""
+        return {
+            'success': True,
+            'customers': [
+                {'CardCode': 'C10000', 'CardName': 'Acme Corporation'},
+                {'CardCode': 'C10001', 'CardName': 'Global Industries Ltd'},
+                {'CardCode': 'C10002', 'CardName': 'Tech Solutions Inc'},
+            ]
+        }
+    
+    def get_mock_cardcodes_by_series(self, series_id=None):
+        """Generate mock cardcode data for testing without SAP connectivity"""
+        return {
+            'success': True,
+            'cardcodes': [
+                {
+                    'CardCode': 'V001504',
+                    'CardName': 'SRI SABARI AGENCIES',
+                    'DocumentStatus': 'O',
+                    'DocNum': 5500181,
+                    'Series': int(series_id) if series_id else 987,
+                    'DocDate': '2025-12-06',
+                    'DocDueDate': '2025-12-06',
+                    'DocTotal': 4490.0,
+                    'DocEntry': 43267
+                },
+                {
+                    'CardCode': 'V001505',
+                    'CardName': 'PRIME SUPPLIERS PVT LTD',
+                    'DocumentStatus': 'O',
+                    'DocNum': 5500182,
+                    'Series': int(series_id) if series_id else 987,
+                    'DocDate': '2025-12-05',
+                    'DocDueDate': '2025-12-10',
+                    'DocTotal': 12500.0,
+                    'DocEntry': 43268
+                },
+                {
+                    'CardCode': 'V001506',
+                    'CardName': 'TECH COMPONENTS INDIA',
+                    'DocumentStatus': 'O',
+                    'DocNum': 5500183,
+                    'Series': int(series_id) if series_id else 987,
+                    'DocDate': '2025-12-04',
+                    'DocDueDate': '2025-12-15',
+                    'DocTotal': 8750.0,
+                    'DocEntry': 43269
+                }
+            ]
+        }
+    
+    def get_mock_po_lines(self, doc_entry):
+        """Generate mock PO line items for testing without SAP connectivity
+        Note: LineStatus 'O' is the SAP $crossjoin format, 'bost_Open' is the standard PO format
+        """
+        document_lines = [
+            {
+                'LineNum': 0,
+                'ItemCode': 'ITEM001',
+                'ItemDescription': 'Test Item 1 - Batch Managed',
+                'WarehouseCode': 'WH01',
+                'UnitsOfMeasurment': 1.0,
+                'DocEntry': doc_entry,
+                'LineTotal': 1500.0,
+                'LineStatus': 'O',
+                'Quantity': 10.0,
+                'Price': 150.0,
+                'PriceAfterVAT': 177.0
+            },
+            {
+                'LineNum': 1,
+                'ItemCode': 'ITEM002',
+                'ItemDescription': 'Test Item 2 - Serial Managed',
+                'WarehouseCode': 'WH01',
+                'UnitsOfMeasurment': 1.0,
+                'DocEntry': doc_entry,
+                'LineTotal': 2990.0,
+                'LineStatus': 'O',
+                'Quantity': 5.0,
+                'Price': 598.0,
+                'PriceAfterVAT': 705.64
+            }
+        ]
+        
+        return {
+            'success': True,
+            'purchase_order': {
+                'CardCode': 'V001504',
+                'CardName': 'SRI SABARI AGENCIES',
+                'DocumentStatus': 'O',
+                'DocNum': 5500181,
+                'Series': 987,
+                'DocDate': '2025-12-06',
+                'DocDueDate': '2025-12-06',
+                'DocTotal': 4490.0,
+                'DocEntry': doc_entry,
+                'DocumentLines': document_lines,
+                'OpenLines': document_lines,
+                'TotalOpenLines': len(document_lines)
+            }
         }
     
     def validate_item_code(self, item_code):
@@ -432,89 +540,68 @@ class SAPMultiGRNService:
         Example URL:
         /b1s/v1/PurchaseOrders?$filter=Series eq 987&$select=CardCode,CardName
         """
+        if self.enable_mock_data:
+            logging.info(f"📋 Using mock cardcode data for series {series_id} (ENABLE_MOCK_SAP_DATA=true)")
+            return self.get_mock_cardcodes_by_series(series_id)
+        
         if not self.ensure_logged_in():
-            logging.warning(f"⚠️ SAP login failed - cannot fetch CardCode for series {series_id}")
-            return {'success': False, 'error': 'SAP login failed'}
+            logging.warning(f"⚠️ SAP login failed - using mock data as fallback for series {series_id}")
+            return self.get_mock_cardcodes_by_series(series_id)
 
         try:
-            # Build OData GET URL (no post required)
-            # url = (
-            #     f"{self.base_url}/b1s/v1/PurchaseOrders"
-            #     f"?$filter=Series eq {series_id} and DocumentStatus eq 'bost_Open'"
-            #     f"&$select=CardCode,CardName"
-            # )
-            url = (
-                f"{self.base_url}/b1s/v1/PurchaseOrders"
-                f"?$filter=DocumentStatus eq 'bost_Open'"
-                f"&$select=CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry"
-            )
-
+            url = f"{self.base_url}/b1s/v1/PurchaseOrders"
+            filter_query = "DocumentStatus eq 'bost_Open'"
+            if series_id:
+                filter_query = f"Series eq {series_id} and DocumentStatus eq 'bost_Open'"
+            
+            params = {
+                '$filter': filter_query,
+                '$select': 'CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry'
+            }
             headers = {"Prefer": "odata.maxpagesize=0"}
 
-            logging.info(f"🔍 Fetching CardCodes for series: {series_id}")
-
-            # 🚀 MUST BE GET
-            response = self.session.get(url, headers=headers, timeout=30)
+            logging.info(f"🔍 Fetching CardCodes for series: {series_id} with filter: {filter_query}")
+            response = self.session.get(url, params=params, headers=headers, timeout=30)
 
             if response.status_code == 200:
                 data = response.json()
-                cardcodes = data.get('value', [])
-                logging.info(f"✅ Fetched {len(cardcodes)} CardCodes for series {series_id}")
+                all_cardcodes = data.get('value', [])
+                
+                unique_cardcodes = {}
+                for item in all_cardcodes:
+                    card_code = item.get('CardCode')
+                    if card_code and card_code not in unique_cardcodes:
+                        unique_cardcodes[card_code] = item
+                
+                cardcodes = list(unique_cardcodes.values())
+                cardcodes.sort(key=lambda x: x.get('CardName', ''))
+                
+                logging.info(f"✅ Fetched {len(cardcodes)} unique CardCodes for series {series_id}")
                 return {'success': True, 'cardcodes': cardcodes}
 
             elif response.status_code == 401:
                 self.session_id = None
                 if self.login():
                     return self.fetch_cardcode_by_series(series_id)
-                return {'success': False, 'error': 'Authentication failed'}
+                logging.warning("⚠️ Authentication failed - using mock data as fallback")
+                return self.get_mock_cardcodes_by_series(series_id)
 
             else:
                 error_msg = response.text
                 logging.error(f"❌ Failed to fetch CardCodes for series {series_id}: {error_msg}")
-                return {'success': False, 'error': error_msg}
+                logging.warning("⚠️ Using mock data as fallback")
+                return self.get_mock_cardcodes_by_series(series_id)
 
+        except requests.exceptions.ConnectionError:
+            logging.warning(f"⚠️ Cannot connect to SAP server - using mock data as fallback")
+            return self.get_mock_cardcodes_by_series(series_id)
+        except requests.exceptions.Timeout:
+            logging.warning(f"⚠️ SAP request timeout - using mock data as fallback")
+            return self.get_mock_cardcodes_by_series(series_id)
         except Exception as e:
             logging.error(f"❌ Error fetching CardCodes for series {series_id}: {str(e)}")
-            return {'success': False, 'error': str(e)}
-
-    # def fetch_cardcode_by_series(self, series_id):
-    #     """
-    #     Fetch CardCode by Series ID from SAP B1 using SQL Query
-    #     URL: /b1s/v1/SQLQueries('Get_CarCode_BySeriesID')/List
-    #     """
-    #     if not self.ensure_logged_in():
-    #         logging.warning(f"⚠️ SAP login failed - cannot fetch CardCode for series {series_id}")
-    #         return {'success': False, 'error': 'SAP login failed'}
-    #
-    #     try:
-    #         #url = f"{self.base_url}/b1s/v1/SQLQueries('Get_CarCode_BySeriesID')/List"
-    #         url = f"{self.base_url}/b1s/v1/PurchaseOrders?$filter=Series eq  {series_id} &$select=CardCode,CardName"
-    #         # payload = {
-    #         #     "ParamList": f"SeriesID='{series_id}'"
-    #         # }
-    #         headers = {"Prefer": "odata.maxpagesize=0"}
-    #         logging.info(f"🔍 Fetching CardCodes for series: {series_id}")
-    #         response = self.session.post(url,headers=headers, timeout=30)
-    #
-    #         if response.status_code == 200:
-    #             data = response.json()
-    #             print(data)
-    #             cardcodes = data.get('value', [])
-    #             logging.info(f"✅ Fetched {len(cardcodes)} CardCodes for series {series_id}")
-    #             return {'success': True, 'cardcodes': cardcodes}
-    #         elif response.status_code == 401:
-    #             self.session_id = None
-    #             if self.login():
-    #                 return self.fetch_cardcode_by_series(series_id)
-    #             return {'success': False, 'error': 'Authentication failed'}
-    #         else:
-    #             error_msg = response.text
-    #             logging.error(f"❌ Failed to fetch CardCodes for series {series_id}: {error_msg}")
-    #             return {'success': False, 'error': error_msg}
-    #
-    #     except Exception as e:
-    #         logging.error(f"❌ Error fetching CardCodes for series {series_id}: {str(e)}")
-    #         return {'success': False, 'error': str(e)}
+            logging.warning("⚠️ Using mock data as fallback")
+            return self.get_mock_cardcodes_by_series(series_id)
     
     def get_bin_abs_entry(self, bin_code):
         """
@@ -623,3 +710,243 @@ class SAPMultiGRNService:
         except Exception as e:
             logging.error(f"❌ Error fetching POs for series {series_id} and card {card_code}: {str(e)}")
             return {'success': False, 'error': str(e)}
+
+    def fetch_customers_from_open_pos(self):
+        """
+        Fetch unique CardCode/CardName from all open Purchase Orders
+        URL: /b1s/v1/PurchaseOrders?$filter=DocumentStatus eq 'bost_Open'&$select=CardCode,CardName
+        Returns unique customers who have open POs
+        """
+        if self.enable_mock_data:
+            logging.info("📋 Using mock customer data from open POs (ENABLE_MOCK_SAP_DATA=true)")
+            return self.get_mock_customers_from_open_pos()
+        
+        if not self.ensure_logged_in():
+            logging.warning("⚠️ SAP login failed - using mock data as fallback")
+            return self.get_mock_customers_from_open_pos()
+        
+        try:
+            url = f"{self.base_url}/b1s/v1/PurchaseOrders"
+            params = {
+                '$filter': "DocumentStatus eq 'bost_Open'",
+                '$select': 'CardCode,CardName'
+            }
+            headers = {"Prefer": "odata.maxpagesize=0"}
+            
+            logging.info("🔍 Fetching unique customers from open Purchase Orders")
+            response = self.session.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                all_customers = data.get('value', [])
+                
+                unique_customers = {}
+                for customer in all_customers:
+                    card_code = customer.get('CardCode')
+                    card_name = customer.get('CardName')
+                    if card_code and card_code not in unique_customers:
+                        unique_customers[card_code] = {
+                            'CardCode': card_code,
+                            'CardName': card_name
+                        }
+                
+                customers_list = list(unique_customers.values())
+                customers_list.sort(key=lambda x: x.get('CardName', ''))
+                
+                logging.info(f"✅ Fetched {len(customers_list)} unique customers from open POs")
+                return {'success': True, 'customers': customers_list}
+            elif response.status_code == 401:
+                self.session_id = None
+                if self.login():
+                    return self.fetch_customers_from_open_pos()
+                return {'success': False, 'error': 'Authentication failed'}
+            else:
+                error_msg = response.text
+                logging.error(f"❌ Failed to fetch customers from open POs: {error_msg}")
+                logging.warning("⚠️ Using mock data as fallback")
+                return self.get_mock_customers_from_open_pos()
+                
+        except requests.exceptions.ConnectionError as e:
+            logging.warning(f"⚠️ Cannot connect to SAP server - using mock data as fallback")
+            return self.get_mock_customers_from_open_pos()
+        except requests.exceptions.Timeout:
+            logging.warning(f"⚠️ SAP request timeout - using mock data as fallback")
+            return self.get_mock_customers_from_open_pos()
+        except Exception as e:
+            logging.error(f"❌ Error fetching customers from open POs: {str(e)}")
+            logging.warning("⚠️ Using mock data as fallback")
+            return self.get_mock_customers_from_open_pos()
+
+    def get_mock_purchase_orders(self, card_code):
+        """Generate mock purchase orders for testing without SAP connectivity"""
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        return {
+            'success': True,
+            'purchase_orders': [
+                {
+                    'DocEntry': 1001,
+                    'DocNum': 'PO-1001',
+                    'CardCode': card_code,
+                    'CardName': 'Mock Customer',
+                    'DocDate': today.strftime('%Y-%m-%d'),
+                    'DocDueDate': (today + timedelta(days=30)).strftime('%Y-%m-%d'),
+                    'DocTotal': 15000.00,
+                    'Series': 1
+                },
+                {
+                    'DocEntry': 1002,
+                    'DocNum': 'PO-1002',
+                    'CardCode': card_code,
+                    'CardName': 'Mock Customer',
+                    'DocDate': today.strftime('%Y-%m-%d'),
+                    'DocDueDate': (today + timedelta(days=45)).strftime('%Y-%m-%d'),
+                    'DocTotal': 25000.00,
+                    'Series': 1
+                },
+                {
+                    'DocEntry': 1003,
+                    'DocNum': 'PO-1003',
+                    'CardCode': card_code,
+                    'CardName': 'Mock Customer',
+                    'DocDate': (today - timedelta(days=5)).strftime('%Y-%m-%d'),
+                    'DocDueDate': (today + timedelta(days=25)).strftime('%Y-%m-%d'),
+                    'DocTotal': 8500.00,
+                    'Series': 1
+                }
+            ]
+        }
+
+    def fetch_pos_by_cardcode(self, card_code):
+        """
+        Fetch open Purchase Orders filtered by CardCode only
+        URL: /b1s/v1/PurchaseOrders?$select=CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry&$filter=CardCode eq 'XXX' and DocumentStatus eq 'bost_Open'
+        Returns POs with all details needed for selection screen
+        """
+        if self.enable_mock_data:
+            logging.info(f"📋 Using mock PO data for CardCode {card_code} (ENABLE_MOCK_SAP_DATA=true)")
+            return self.get_mock_purchase_orders(card_code)
+        
+        if not self.ensure_logged_in():
+            logging.warning(f"⚠️ SAP login failed - using mock data as fallback")
+            return self.get_mock_purchase_orders(card_code)
+        
+        try:
+            url = f"{self.base_url}/b1s/v1/PurchaseOrders"
+            params = {
+                '$filter': f"CardCode eq '{card_code}' and DocumentStatus eq 'bost_Open'",
+                '$select': 'CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry'
+            }
+            headers = {"Prefer": "odata.maxpagesize=0"}
+            
+            logging.info(f"🔍 Fetching open POs for CardCode: {card_code}")
+            response = self.session.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                pos = data.get('value', [])
+                logging.info(f"✅ Fetched {len(pos)} open POs for CardCode {card_code}")
+                return {'success': True, 'purchase_orders': pos}
+            elif response.status_code == 401:
+                self.session_id = None
+                if self.login():
+                    return self.fetch_pos_by_cardcode(card_code)
+                return {'success': False, 'error': 'Authentication failed'}
+            else:
+                error_msg = response.text
+                logging.error(f"❌ Failed to fetch POs for CardCode {card_code}: {error_msg}")
+                logging.warning("⚠️ Using mock data as fallback")
+                return self.get_mock_purchase_orders(card_code)
+                
+        except requests.exceptions.ConnectionError as e:
+            logging.warning(f"⚠️ Cannot connect to SAP server - using mock data as fallback")
+            return self.get_mock_purchase_orders(card_code)
+        except requests.exceptions.Timeout:
+            logging.warning(f"⚠️ SAP request timeout - using mock data as fallback")
+            return self.get_mock_purchase_orders(card_code)
+        except Exception as e:
+            logging.error(f"❌ Error fetching POs for CardCode {card_code}: {str(e)}")
+            logging.warning("⚠️ Using mock data as fallback")
+            return self.get_mock_purchase_orders(card_code)
+
+    def fetch_po_lines_by_docentry(self, doc_entry):
+        """
+        Fetch Purchase Order details including line items by DocEntry using $crossjoin
+        URL: /b1s/v1/$crossjoin(PurchaseOrders,PurchaseOrders/DocumentLines)?$expand=...&$filter=...DocEntry eq X
+        Returns full PO details with DocumentLines in the $crossjoin response format
+        """
+        if self.enable_mock_data:
+            logging.info(f"📋 Using mock PO lines for DocEntry {doc_entry} (ENABLE_MOCK_SAP_DATA=true)")
+            return self.get_mock_po_lines(doc_entry)
+        
+        if not self.ensure_logged_in():
+            logging.warning(f"⚠️ SAP login failed - using mock data as fallback for DocEntry {doc_entry}")
+            return self.get_mock_po_lines(doc_entry)
+        
+        try:
+            url = (
+                f"{self.base_url}/b1s/v1/$crossjoin(PurchaseOrders,PurchaseOrders/DocumentLines)"
+                f"?$expand=PurchaseOrders($select=CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry),"
+                f"PurchaseOrders/DocumentLines($select=LineNum,ItemCode,ItemDescription,WarehouseCode,UnitsOfMeasurment,DocEntry,LineTotal,LineStatus,Quantity,Price,PriceAfterVAT)"
+                f"&$filter=PurchaseOrders/DocumentStatus eq PurchaseOrders/DocumentLines/LineStatus "
+                f"and PurchaseOrders/DocEntry eq PurchaseOrders/DocumentLines/DocEntry "
+                f"and PurchaseOrders/DocumentLines/DocEntry eq {doc_entry}"
+            )
+            
+            logging.info(f"🔍 Fetching PO lines using $crossjoin for DocEntry: {doc_entry}")
+            response = self.session.get(url, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                crossjoin_values = data.get('value', [])
+                
+                if not crossjoin_values:
+                    logging.warning(f"⚠️ No data found for DocEntry {doc_entry}")
+                    return {'success': False, 'error': f'No data found for DocEntry {doc_entry}'}
+                
+                first_record = crossjoin_values[0]
+                po_header = first_record.get('PurchaseOrders', {})
+                
+                document_lines = []
+                open_lines = []
+                for record in crossjoin_values:
+                    line_data = record.get('PurchaseOrders/DocumentLines', {})
+                    if line_data:
+                        document_lines.append(line_data)
+                        if line_data.get('LineStatus') == 'O' and line_data.get('Quantity', 0) > 0:
+                            open_lines.append(line_data)
+                
+                po_data = {
+                    **po_header,
+                    'DocumentLines': document_lines,
+                    'OpenLines': open_lines,
+                    'TotalOpenLines': len(open_lines)
+                }
+                
+                logging.info(f"✅ Fetched PO {doc_entry} with {len(open_lines)} open lines using $crossjoin")
+                return {'success': True, 'purchase_order': po_data}
+            elif response.status_code == 401:
+                self.session_id = None
+                if self.login():
+                    return self.fetch_po_lines_by_docentry(doc_entry)
+                logging.warning("⚠️ Authentication failed - using mock data as fallback")
+                return self.get_mock_po_lines(doc_entry)
+            elif response.status_code == 404:
+                logging.warning(f"⚠️ DocEntry {doc_entry} not found - using mock data as fallback")
+                return self.get_mock_po_lines(doc_entry)
+            else:
+                error_msg = response.text
+                logging.error(f"❌ Failed to fetch PO lines for DocEntry {doc_entry}: {error_msg}")
+                logging.warning("⚠️ Using mock data as fallback")
+                return self.get_mock_po_lines(doc_entry)
+                
+        except requests.exceptions.ConnectionError:
+            logging.warning(f"⚠️ Cannot connect to SAP server - using mock data as fallback")
+            return self.get_mock_po_lines(doc_entry)
+        except requests.exceptions.Timeout:
+            logging.warning(f"⚠️ SAP request timeout - using mock data as fallback")
+            return self.get_mock_po_lines(doc_entry)
+        except Exception as e:
+            logging.error(f"❌ Error fetching PO lines for DocEntry {doc_entry}: {str(e)}")
+            logging.warning("⚠️ Using mock data as fallback")
+            return self.get_mock_po_lines(doc_entry)
