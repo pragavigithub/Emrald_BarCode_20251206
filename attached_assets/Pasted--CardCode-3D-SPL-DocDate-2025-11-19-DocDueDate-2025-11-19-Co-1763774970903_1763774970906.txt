@@ -1,0 +1,118 @@
+{
+    "CardCode": "3D SPL",
+    "DocDate": "2025-11-19",
+    "DocDueDate": "2025-11-19",
+    "Comments": "Auto-created from batch MGRN-20251119135318. POs: 252630035, 252630036",
+    "NumAtCard": "MGRN-20251119135318",
+    "BPL_IDAssignedToInvoice": 5,
+    "DocumentLines": [
+        {
+            "LineNum": 0,
+            "BaseType": 22,
+            "BaseEntry": 3674,
+            "BaseLine": 0,
+            "ItemCode": "Non_Sr_Bt",
+            "Quantity": 9.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": 251,
+                    "Quantity": 9.0,
+                    "SerialAndBatchNumbersBaseLine": 0
+                }
+            ]
+        },
+        {
+            "LineNum": 1,
+            "BaseType": 22,
+            "BaseEntry": 3674,
+            "BaseLine": 1,
+            "ItemCode": "BatchItem_01",
+            "Quantity": 9.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": 362,
+                    "Quantity": 9.0,
+                    "SerialAndBatchNumbersBaseLine": 0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "20251119-BatchItem_-1",
+                    "Quantity": 9.0,
+                    "ExpiryDate": "2025-12-06"
+                }
+            ]
+        },
+        {
+            "LineNum": 2,
+            "BaseType": 22,
+            "BaseEntry": 3675,
+            "BaseLine": 0,
+            "ItemCode": "BatchItem_01",
+            "Quantity": 2.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": 251,
+                    "Quantity": 2.0,
+                    "SerialAndBatchNumbersBaseLine": 0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "20251119-BatchItem_-1",
+                    "Quantity": 2.0,
+                    "ExpiryDate": "2025-12-06"
+                }
+            ]
+        },
+        {
+            "LineNum": 3,
+            "BaseType": 22,
+            "BaseEntry": 3675,
+            "BaseLine": 1,
+            "ItemCode": "BatchItem_02",
+            "Quantity": 3.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": 251,
+                    "Quantity": 3.0,
+                    "SerialAndBatchNumbersBaseLine": 0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "20251119-BatchItem_-1",
+                    "Quantity": 3.0,
+                    "ExpiryDate": "2025-12-06"
+                }
+            ]
+        },
+        {
+            "LineNum": 4,
+            "BaseType": 22,
+            "BaseEntry": 3675,
+            "BaseLine": 2,
+            "ItemCode": "BatchItem_3",
+            "Quantity": 3.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": 251,
+                    "Quantity": 3.0,
+                    "SerialAndBatchNumbersBaseLine": 0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "20251119-BatchItem_-1",
+                    "Quantity": 3.0,
+                    "ExpiryDate": "2025-12-06"
+                }
+            ]
+        }
+    ]
+}

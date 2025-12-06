@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block head %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('multi_grn.index') }}">Multiple GRN</a></li>
+            <li class="breadcrumb-item active">Step 1: Select Document Series & Customer</li>
+        </ol>
+    </nav>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="fas fa-file-invoice"></i> Step 1: Select Document Series & Customer</h4>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="customerForm">
+                <!-- Document Series Dropdown -->
+                <div class="mb-3">
+                    <label for="seriesDropdown" class="form-label">Document Series *</label>
+                    <select class="form-select" id="seriesDropdown" name="series_dropdown" required style="width: 100%;">
+                        <option value="">-- Select Document Series --</option>
+                    </select>
+                    <div id="seriesLoadingMessage" class="text-muted mt-2" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading series...
+                    </div>
+                    <div id="seriesErrorMessage" class="text-danger mt-2" style="display: none;"></div>
+                </div>
+
+                <!-- Customer Dropdown (Cascading - enabled after series selection) -->
+                <div class="mb-3">
+                    <label for="customerDropdown" class="form-label">Select Customer *</label>
+                    <select class="form-select" id="customerDropdown" name="customer_dropdown" required style="width: 100%;" disabled>
+                        <option value="">-- First select a Document Series --</option>
+                    </select>
+                    <div id="customerLoadingMessage" class="text-muted mt-2" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading customers...
+                    </div>
+                    <div id="customerErrorMessage" class="text-danger mt-2" style="display: none;"></div>
+                </div>
+
+                <!-- Hidden fields for form submission -->
+                <input type="hidden" name="series_id" id="series_id" required>
+                <input type="hidden" name="series_name" id="series_name" required>
+                <input type="hidden" name="customer_code" id="customer_code" required>
+                <input type="hidden" name="customer_name" id="customer_name" required>
+
+                <!-- Selection Summary -->
+                <div id="selectedInfo" class="alert alert-info d-none">
+                    <strong>Selected:</strong><br>
+                    <span id="selectedInfoText"></span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('multi_grn.index') }}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary" id="nextBtn" disabled>
+                        Next: Select POs <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    const seriesDropdown = $('#seriesDropdown');
+    const customerDropdown = $('#customerDropdown');
+    const seriesLoadingMessage = $('#seriesLoadingMessage');
+    const customerLoadingMessage = $('#customerLoadingMessage');
+    const seriesErrorMessage = $('#seriesErrorMessage');
+    const customerErrorMessage = $('#customerErrorMessage');
+    const selectedInfo = $('#selectedInfo');
+    const nextBtn = $('#nextBtn');
+    
+    let selectedSeriesId = null;
+    let selectedSeriesName = null;
+    let selectedCustomerCode = null;
+    let selectedCustomerName = null;
+    
+    // Initialize Select2 for both dropdowns
+    seriesDropdown.select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Select a Document Series',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    customerDropdown.select2({
+        theme: 'bootstrap-5',
+        placeholder: 'First select a Document Series',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    // Step 1: Load Document Series from API
+    seriesLoadingMessage.show();
+    seriesErrorMessage.hide();
+    
+    fetch('/multi-grn/api/po-series')
+        .then(response => response.json())
+        .then(data => {
+            seriesLoadingMessage.hide();
+            
+            if (data.success && data.series) {
+                // Populate series dropdown
+                data.series.forEach(series => {
+                    const option = new Option(
+                        series.SeriesName,
+                        series.Series,
+                        false,
+                        false
+                    );
+                    $(option).data('series-name', series.SeriesName);
+                    seriesDropdown.append(option);
+                });
+                
+                seriesDropdown.trigger('change');
+                console.log(`✅ Loaded ${data.series.length} document series`);
+            } else {
+                seriesErrorMessage.text('Failed to load document series: ' + (data.error || 'Unknown error'));
+                seriesErrorMessage.show();
+            }
+        })
+        .catch(err => {
+            seriesLoadingMessage.hide();
+            seriesErrorMessage.text('Error loading document series: ' + err.message);
+            seriesErrorMessage.show();
+            console.error('Error loading series:', err);
+        });
+    
+    // Step 2: Handle series selection and load customers for that series
+    seriesDropdown.on('change', function() {
+        const selectedId = $(this).val();
+        const selectedOption = $(this).find('option:selected');
+        const selectedName = selectedOption.data('series-name') || selectedOption.text();
+        
+        // Reset customer dropdown and selection
+        customerDropdown.html('<option value="">-- Select Customer --</option>').trigger('change');
+        customerDropdown.prop('disabled', !selectedId);
+        selectedCustomerCode = null;
+        selectedCustomerName = null;
+        customerErrorMessage.hide();
+        selectedInfo.addClass('d-none');
+        nextBtn.prop('disabled', true);
+        
+        if (selectedId) {
+            selectedSeriesId = selectedId;
+            selectedSeriesName = selectedName;
+            
+            $('#series_id').val(selectedSeriesId);
+            $('#series_name').val(selectedSeriesName);
+            
+            // Load customers for selected series
+            customerLoadingMessage.show();
+            
+            fetch(`/multi-grn/api/cardcode-by-series/${selectedId}`)
+                .then(response => response.json())
+                .then(data => {
+                    customerLoadingMessage.hide();
+                    
+                    if (data.success && data.cardcodes) {
+                        // Populate customer dropdown
+                        const uniqueCustomers = new Map();
+                        
+                        data.cardcodes.forEach(customer => {
+                            const cardCode = customer.CardCode;
+                            const cardName = customer.CardName;
+                            
+                            if (!uniqueCustomers.has(cardCode)) {
+                                uniqueCustomers.set(cardCode, cardName);
+                            }
+                        });
+                        
+                        uniqueCustomers.forEach((cardName, cardCode) => {
+                            const option = new Option(
+                                `${cardName} (${cardCode})`,
+                                cardCode,
+                                false,
+                                false
+                            );
+                            $(option).data('customer-name', cardName);
+                            customerDropdown.append(option);
+                        });
+                        
+                        customerDropdown.trigger('change');
+                        console.log(`✅ Loaded ${uniqueCustomers.size} unique customers for series ${selectedId}`);
+                    } else {
+                        customerErrorMessage.text('Failed to load customers: ' + (data.error || 'Unknown error'));
+                        customerErrorMessage.show();
+                    }
+                })
+                .catch(err => {
+                    customerLoadingMessage.hide();
+                    customerErrorMessage.text('Error loading customers: ' + err.message);
+                    customerErrorMessage.show();
+                    console.error('Error loading customers:', err);
+                });
+        } else {
+            selectedSeriesId = null;
+            selectedSeriesName = null;
+            $('#series_id').val('');
+            $('#series_name').val('');
+        }
+    });
+    
+    // Step 3: Handle customer selection
+    customerDropdown.on('change', function() {
+        const selectedCode = $(this).val();
+        const selectedOption = $(this).find('option:selected');
+        const selectedName = selectedOption.data('customer-name') || selectedOption.text();
+        
+        if (selectedCode) {
+            selectedCustomerCode = selectedCode;
+            selectedCustomerName = selectedName;
+            
+            $('#customer_code').val(selectedCustomerCode);
+            $('#customer_name').val(selectedCustomerName);
+            
+            // Show selection summary
+            $('#selectedInfoText').html(`
+                <strong>Series:</strong> ${selectedSeriesName} (${selectedSeriesId})<br>
+                <strong>Customer:</strong> ${selectedCustomerName} (${selectedCustomerCode})
+            `);
+            selectedInfo.removeClass('d-none');
+            
+            nextBtn.prop('disabled', false);
+        } else {
+            selectedCustomerCode = null;
+            selectedCustomerName = null;
+            $('#customer_code').val('');
+            $('#customer_name').val('');
+            selectedInfo.addClass('d-none');
+            nextBtn.prop('disabled', true);
+        }
+    });
+    
+    // Prevent form submission if selections are incomplete
+    $('#customerForm').on('submit', function(e) {
+        if (!selectedSeriesId || !selectedCustomerCode) {
+            e.preventDefault();
+            alert('Please select both Document Series and Customer');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

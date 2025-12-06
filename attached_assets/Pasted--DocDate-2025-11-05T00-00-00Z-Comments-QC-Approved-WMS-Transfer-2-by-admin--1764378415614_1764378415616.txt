@@ -1,0 +1,74 @@
+{
+    "DocDate": "2025-11-05T00:00:00Z",
+    "Comments": "QC Approved WMS Transfer 2 by admin",
+    "FromWarehouse": "7000-FG",
+    "ToWarehouse": "7000-QFG",
+    "BPLID": 5,
+    "StockTransferLines": [
+        {
+            "LineNum": 0,
+            "ItemCode": "IPhone",
+            "Quantity": 2.0,
+            "WarehouseCode": "7000-QFG",
+            "FromWarehouseCode": "7000-FG",
+            "BaseEntry": 27,
+            "BaseLine": 0,
+            "BaseType": "1250000001",
+            "SerialNumbers": [
+                {
+                    "BaseLineNumber": 0,
+                    "InternalSerialNumber": "IP000001",
+                    "Quantity": 1
+                },
+                {
+                    "BaseLineNumber": 0,
+                    "InternalSerialNumber": "IP000002",
+                    "Quantity": 1
+                }
+            ],
+            "BatchNumbers": [],
+            "StockTransferLinesBinAllocations": []
+        },
+        {
+            "LineNum": 1,
+            "ItemCode": "BatchItem_01",
+            "Quantity": 30.0,
+            "WarehouseCode": "7000-QFG",
+            "FromWarehouseCode": "7000-FG",
+            "BaseEntry": 27,
+            "BaseLine": 1,
+            "BaseType": "1250000001",
+            "BatchNumbers": [
+                {
+                    "BaseLineNumber": 1,
+                    "BatchNumberProperty": "B001t",
+                    "Quantity": 10.0
+                },
+                {
+                    "BaseLineNumber": 1,
+                    "BatchNumberProperty": "B001t_01",
+                    "Quantity": 10.0
+                },
+                {
+                    "BaseLineNumber": 1,
+                    "BatchNumberProperty": "B001t_02",
+                    "Quantity": 10.0
+                }
+            ],
+            "SerialNumbers": [],
+            "StockTransferLinesBinAllocations": []
+        },
+        {
+            "LineNum": 2,
+            "ItemCode": "Non_Sr_Bt",
+            "Quantity": 2.0,
+            "WarehouseCode": "7000-QFG",
+            "FromWarehouseCode": "7000-FG",
+            "BaseEntry": 27,
+            "BaseLine": 2,
+            "BatchNumbers": [],
+            "SerialNumbers": [],
+            "StockTransferLinesBinAllocations": []
+        }
+    ]
+}

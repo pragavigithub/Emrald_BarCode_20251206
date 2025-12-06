@@ -1,0 +1,1113 @@
+{% extends "base.html" %}
+
+{% block title %}SO Against Invoice - {{ document.document_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="card-title mb-0">
+                            <i class="fas fa-file-invoice"></i> {{ document.document_number }}
+                        </h3>
+                        <div>
+                            {% if document.status == 'draft' %}
+                                <span class="badge bg-secondary fs-6">Draft</span>
+                            {% elif document.status == 'validated' %}
+                                <span class="badge bg-info fs-6">Validated</span>
+                            {% elif document.status == 'posted' %}
+                                <span class="badge bg-success fs-6">Posted</span>
+                            {% elif document.status == 'failed' %}
+                                <span class="badge bg-danger fs-6">Failed</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Document Header -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Document Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td width="40%"><strong>Document Number:</strong></td>
+                                    <td>{{ document.document_number }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Created By:</strong></td>
+                                    <td>{{ document.user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Created At:</strong></td>
+                                    <td>{{ document.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                                {% if document.sap_invoice_number %}
+                                <tr>
+                                    <td><strong>SAP Invoice #:</strong></td>
+                                    <td><span class="badge bg-success">{{ document.sap_invoice_number }}</span></td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            {% if document.so_number %}
+                            <h6>Sales Order Information</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td width="40%"><strong>SO Series:</strong></td>
+                                    <td>{{ document.so_series_name }} ({{ document.so_series }})</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>SO Number:</strong></td>
+                                    <td>{{ document.so_number }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Customer:</strong></td>
+                                    <td>
+                                        <strong>{{ document.card_code }}</strong><br>
+                                        <small>{{ document.card_name }}</small>
+                                    </td>
+                                </tr>
+                                {% if document.customer_address %}
+                                <tr>
+                                    <td><strong>Address:</strong></td>
+                                    <td><small>{{ document.customer_address }}</small></td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Workflow Steps -->
+                    <div class="mb-4">
+                        <h6>Workflow Progress</h6>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="progress-wrapper">
+                                    <div class="progress" style="height: 30px;">
+                                        <div class="progress-bar 
+                                            {% if document.status == 'draft' %}bg-secondary{% endif %}
+                                            {% if document.status == 'validated' %}bg-info{% endif %}
+                                            {% if document.status == 'posted' %}bg-success{% endif %}
+                                            {% if document.status == 'failed' %}bg-danger{% endif %}"
+                                            role="progressbar" 
+                                            style="width: 
+                                                {% if document.status == 'draft' %}25%{% endif %}
+                                                {% if document.status == 'validated' %}75%{% endif %}
+                                                {% if document.status == 'posted' %}100%{% endif %}
+                                                {% if document.status == 'failed' %}50%{% endif %}">
+                                            {% if document.status == 'draft' %}Step 1: Draft Created{% endif %}
+                                            {% if document.status == 'validated' %}Step 3: SO Validated{% endif %}
+                                            {% if document.status == 'posted' %}Step 5: Invoice Posted{% endif %}
+                                            {% if document.status == 'failed' %}Failed{% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            Steps: 1. Create → 2. Select SO Series → 3. Validate SO → 4. Validate Items → 5. Post Invoice
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SO Selection (if not selected yet) -->
+                    {% if document.status == 'draft' %}
+                    <div class="mb-4">
+                        <h6>Step 1: Select Sales Order</h6>
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <form id="soSelectionForm">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <label for="soSeries" class="form-label">SO Series:</label>
+                                            <select id="soSeries" class="form-select" required>
+                                                <option value="">Loading series...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="soNumber" class="form-label">SO Number:</label>
+                                            <input type="text" id="soNumber" class="form-control" 
+                                                   placeholder="Enter SO Number" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">&nbsp;</label>
+                                            <div>
+                                                <button type="button" id="validateSOBtn" class="btn btn-primary">
+                                                    <i class="fas fa-search"></i> Validate SO
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                                
+                                <div id="soValidationResult" class="mt-3" style="display: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- SO Details (if validated) -->
+                    {% if document.status in ['validated', 'posted'] and document.items %}
+                    <div class="mb-4">
+<!--                        <div class="d-flex justify-content-between align-items-center mb-3">-->
+<!--                            <h6 class="mb-0">Step 2: Sales Order Line Items</h6>-->
+<!--                            {% if document.status != 'posted' and document.so_doc_entry %}-->
+<!--                            <button id="syncSODataBtn" class="btn btn-outline-info btn-sm">-->
+<!--                                <i class="fas fa-sync-alt"></i> Sync Data from SAP B1-->
+<!--                            </button>-->
+<!--                            {% endif %}-->
+<!--                        </div>-->
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th>Line #</th>
+                                        <th>Item Code</th>
+                                        <th>Description</th>
+                                        <th>SO Qty</th>
+                                        <th>Warehouse</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="soLineItemsGrid">
+                                    {% for item in document.items %}
+                                    <tr id="soItem_{{ item.id }}" data-item-id="{{ item.id }}">
+                                        <td>{{ item.line_num }}</td>
+                                        <td><strong>{{ item.item_code }}</strong></td>
+                                        <td>{{ item.item_description }}</td>
+                                        <td>{{ item.so_quantity }}</td>
+                                        <td>{{ item.warehouse_code }}</td>
+                                        <td>
+                                            {% if item.validation_status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif item.validation_status == 'validated' %}
+                                                <span class="badge bg-success">Validated</span>
+                                            {% elif item.validation_status == 'failed' %}
+                                                <span class="badge bg-danger">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if document.status == 'validated' %}
+                                            <button class="btn btn-sm btn-outline-primary validate-item-btn" 
+                                                    data-item-id="{{ item.id }}"
+                                                    data-item-code="{{ item.item_code }}"
+                                                    data-item-description="{{ item.item_description }}"
+                                                    data-so-quantity="{{ item.so_quantity }}"
+                                                    data-warehouse="{{ item.warehouse_code }}">
+                                                <i class="fas fa-check"></i> Validate
+                                            </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Validated Items Grid -->
+                    <div class="mb-4">
+                        <h6>Step 3: Validated Line Items <small class="text-muted">(Ready for SAP B1 Posting)</small></h6>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered">
+                                <thead class="table-success">
+                                    <tr>
+                                        <th>Line #</th>
+                                        <th>Item Code</th>
+                                        <th>Description</th>
+                                        <th>Validated Qty</th>
+                                        <th>Warehouse</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="validatedItemsGrid">
+                                    {% for item in document.items %}
+                                        {% if item.validated_quantity > 0 %}
+                                        <tr id="validatedItem_{{ item.id }}" data-item-id="{{ item.id }}">
+                                            <td>{{ item.line_num }}</td>
+                                            <td><strong>{{ item.item_code }}</strong></td>
+                                            <td>{{ item.item_description }}</td>
+                                            <td><span class="badge bg-success">{{ item.validated_quantity }}</span></td>
+                                            <td>{{ item.warehouse_code }}</td>
+                                            <td><span class="badge bg-success">Validated</span></td>
+                                            <td>
+                                                {% if document.status == 'validated' %}
+                                                <button class="btn btn-sm btn-outline-danger remove-validated-btn" 
+                                                        data-item-id="{{ item.id }}">
+                                                    <i class="fas fa-times"></i> Remove
+                                                </button>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div id="noValidatedItems" class="text-center py-4 text-muted" 
+                                 {% if document.items and document.items|selectattr('validated_quantity', 'greaterthan', 0)|list %}style="display: none;"{% endif %}>
+                                <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                No items validated yet. Use the "Validate" button above to add items to this grid.
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Post Invoice (if validated) -->
+                    {% if document.status == 'validated' %}
+                    <div class="mb-4">
+                        <h6>Step 3: Post Invoice to SAP B1</h6>
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <p>All line items are validated. Ready to post invoice to SAP B1.</p>
+                                <button id="postInvoiceBtn" class="btn btn-success">
+                                    <i class="fas fa-paper-plane"></i> Post Invoice to SAP B1
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Error Display -->
+                    {% if document.posting_error %}
+                    <div class="mb-4">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-exclamation-triangle"></i> Posting Error:</h6>
+                            <pre>{{ document.posting_error }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Actions -->
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('so_against_invoice.index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to List
+                        </a>
+                        {% if document.status == 'posted' and document.sap_invoice_number %}
+                        <button class="btn btn-success" disabled>
+                            <i class="fas fa-check"></i> Invoice Posted: {{ document.sap_invoice_number }}
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Item Validation Modal -->
+<div class="modal fade" id="itemValidationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Validate Item: <span id="modalItemTitle"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemValidationForm">
+                    <input type="hidden" id="modalItemId">
+                    <input type="hidden" id="modalItemCode">
+                    <input type="hidden" id="modalItemDescription">
+                    <input type="hidden" id="modalSOQuantity">
+                    <input type="hidden" id="modalWarehouse">
+                    <input type="hidden" id="modalManSerNum">
+                    <input type="hidden" id="modalOnHand">
+                    
+                    <!-- Item Information -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Item Information</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Item Code:</strong> <span id="displayItemCode"></span><br>
+                                    <strong>Description:</strong> <span id="displayDescription"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>SO Quantity:</strong> <span id="displaySOQuantity"></span><br>
+                                    <strong>Warehouse:</strong> <span id="displayWarehouse"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stock Information -->
+                    <div class="card mb-3" id="stockInfoCard" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title">Stock Information</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Management Type:</strong> <span id="displayManSerNum"></span><br>
+                                    <strong>Available Stock:</strong> <span id="displayOnHand" class="badge bg-info"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Serial Number Section -->
+                    <div id="serialNumberSection">
+                        <div class="mb-3">
+                            <label for="serialNumber" class="form-label">Serial Number:</label>
+                            <input type="text" id="serialNumber" class="form-control" 
+                                   placeholder="Enter serial number (auto-validates)">
+                            <small class="form-text text-muted">Each valid serial will auto-populate below. Input will be disabled when limit reached.</small>
+                        </div>
+                        
+                        <!-- Serial Numbers List -->
+                        <div id="serialNumbersList" style="display: none;">
+                            <h6>Added Serial Numbers:</h6>
+                            <div id="serialNumbersContainer" class="border p-2 bg-light" style="max-height: 150px; overflow-y: auto;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quantity Section (for non-serial items) -->
+                    <div id="quantitySection" style="display: none;">
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">Quantity:</label>
+                            <input type="number" id="quantity" class="form-control" 
+                                   placeholder="Enter quantity" min="1" value="1">
+                            <small class="form-text text-muted">Quantity will be validated against available stock.</small>
+                        </div>
+                    </div>
+                </form>
+                
+                <div id="validationResult" class="mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="addToValidatedBtn" class="btn btn-success" style="display: none;">
+                    <i class="fas fa-plus"></i> Add to Validated Grid
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const docId = {{ document.id }};
+    
+    // CSRF protection disabled - no token needed
+    function getCSRFToken() {
+        return null;
+    }
+    
+    // Load SO Series when page loads
+    {% if document.status == 'draft' %}
+    loadSOSeries();
+    {% endif %}
+    
+    // SO Series loading
+    function loadSOSeries() {
+        fetch('/so-against-invoice/api/get-so-series')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('soSeries');
+                select.innerHTML = '<option value="">Select SO Series</option>';
+                
+                if (data.success) {
+                    data.series.forEach(series => {
+                        const option = document.createElement('option');
+                        option.value = series.Series;
+                        option.textContent = `${series.SeriesName} (${series.Series})`;
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">Error loading series</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading SO series:', error);
+                document.getElementById('soSeries').innerHTML = '<option value="">Error loading series</option>';
+            });
+    }
+    
+    // SO Validation
+    document.getElementById('validateSOBtn')?.addEventListener('click', function() {
+        const soSeries = document.getElementById('soSeries').value;
+        const soNumber = document.getElementById('soNumber').value;
+        
+        if (!soSeries || !soNumber) {
+            alert('Please select SO Series and enter SO Number');
+            return;
+        }
+        
+        // Step 1: Validate SO Number with Series
+        fetch('/so-against-invoice/api/validate-so-number', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ so_number: soNumber, series: soSeries })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Step 2: Fetch SO Details
+                return fetch('/so-against-invoice/api/fetch-so-details', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ doc_entry: data.doc_entry })
+                });
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Step 3: Save SO Details
+                const seriesSelect = document.getElementById('soSeries');
+                const selectedOption = seriesSelect.options[seriesSelect.selectedIndex];
+                
+                return fetch('/so-against-invoice/api/save-so-details', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        doc_id: docId,
+                        so_details: {
+                            so_number: soNumber,
+                            doc_entry: data.order.DocEntry,
+                            order: data.order
+                        },
+                        series_info: {
+                            series: soSeries,
+                            series_name: selectedOption.textContent.split(' (')[0]
+                        }
+                    })
+                });
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload page to show updated SO details
+                window.location.reload();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            document.getElementById('soValidationResult').innerHTML = 
+                `<div class="alert alert-danger">Warning: ${error.message}</div>`;
+            document.getElementById('soValidationResult').style.display = 'block';
+        });
+    });
+    
+    // Item type radio buttons
+    document.querySelectorAll('input[name="itemType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const serialSection = document.getElementById('serialNumberSection');
+            const quantitySection = document.getElementById('quantitySection');
+            
+            if (this.value === 'serial') {
+                serialSection.style.display = 'block';
+                quantitySection.style.display = 'none';
+                document.getElementById('quantity').value = 1;
+            } else {
+                serialSection.style.display = 'none';
+                quantitySection.style.display = 'block';
+                document.getElementById('serialNumber').value = '';
+            }
+        });
+    });
+    
+    // Enhanced validation variables
+    let currentValidatedSerials = [];
+    let currentOnHand = 0;
+    let currentManSerNum = '';
+    
+    // Enhanced Item validation buttons
+    document.querySelectorAll('.validate-item-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            const itemCode = this.dataset.itemCode;
+            const itemDescription = this.dataset.itemDescription;
+            const soQuantity = this.dataset.soQuantity;
+            const warehouse = this.dataset.warehouse;
+            
+            // Set modal data
+            document.getElementById('modalItemId').value = itemId;
+            document.getElementById('modalItemCode').value = itemCode;
+            document.getElementById('modalItemDescription').value = itemDescription;
+            document.getElementById('modalSOQuantity').value = soQuantity;
+            document.getElementById('modalWarehouse').value = warehouse;
+            
+            // Display item information
+            document.getElementById('modalItemTitle').textContent = itemCode;
+            document.getElementById('displayItemCode').textContent = itemCode;
+            document.getElementById('displayDescription').textContent = itemDescription;
+            document.getElementById('displaySOQuantity').textContent = soQuantity;
+            document.getElementById('displayWarehouse').textContent = warehouse;
+            
+            // Reset form
+            resetModalForm();
+            
+            // Auto-detect item type and get stock information
+            checkItemStock(itemCode, warehouse);
+            
+            const modal = new bootstrap.Modal(document.getElementById('itemValidationModal'));
+            modal.show();
+        });
+    });
+    
+    function resetModalForm() {
+        currentValidatedSerials = [];
+        currentOnHand = 0;
+        currentManSerNum = '';
+        
+        document.getElementById('serialNumber').value = '';
+        document.getElementById('quantity').value = 1;
+        document.getElementById('validationResult').style.display = 'none';
+        document.getElementById('stockInfoCard').style.display = 'none';
+        document.getElementById('serialNumbersList').style.display = 'none';
+        document.getElementById('addToValidatedBtn').style.display = 'none';
+        document.getElementById('serialNumbersContainer').innerHTML = '';
+    }
+    
+    function checkItemStock(itemCode, warehouseCode) {
+        // Use the new check-item-stock API endpoint
+        fetch('/so-against-invoice/api/check-item-stock', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                item_code: itemCode,
+                warehouse_code: warehouseCode
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentOnHand = data.on_hand;
+                currentManSerNum = data.man_ser_num;
+                
+                // Store values
+                document.getElementById('modalManSerNum').value = currentManSerNum;
+                document.getElementById('modalOnHand').value = currentOnHand;
+                
+                // Display stock information
+                document.getElementById('displayManSerNum').textContent = 
+                    currentManSerNum === 'Y' ? 'Serial Managed' : 'Non-Serial';
+                document.getElementById('displayOnHand').textContent = currentOnHand;
+                document.getElementById('stockInfoCard').style.display = 'block';
+                
+                // Show appropriate input section
+                if (currentManSerNum === 'Y') {
+                    showSerialSection();
+                } else {
+                    showQuantitySection();
+                }
+            } else {
+                showError('Failed to check item stock: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showError('Error checking item stock: ' + error.message);
+        });
+    }
+    
+    function showSerialSection() {
+        document.getElementById('serialNumberSection').style.display = 'block';
+        document.getElementById('quantitySection').style.display = 'none';
+        
+        // Enable serial number input
+        const serialInput = document.getElementById('serialNumber');
+        serialInput.disabled = false;
+        serialInput.focus();
+    }
+    
+    function showQuantitySection() {
+        document.getElementById('serialNumberSection').style.display = 'none';
+        document.getElementById('quantitySection').style.display = 'block';
+        
+        // Set max quantity to available stock
+        const quantityInput = document.getElementById('quantity');
+        quantityInput.max = currentOnHand;
+        quantityInput.focus();
+    }
+    
+    // Serial number input handler (auto-validate on input with debounce)
+    let serialValidationTimeout;
+    let validationRequestId = 0;
+    
+    document.getElementById('serialNumber').addEventListener('input', function(e) {
+        const serialNumber = this.value.trim(); // Normalize to uppercase
+        
+        // Clear previous timeout
+        if (serialValidationTimeout) {
+            clearTimeout(serialValidationTimeout);
+        }
+        
+        // If serial number is not empty and not already validated, validate after a short delay
+        if (serialNumber && !currentValidatedSerials.includes(serialNumber)) {
+            serialValidationTimeout = setTimeout(() => {
+                validationRequestId++; // Increment request ID to handle out-of-order responses
+                validateSerialNumber(serialNumber, validationRequestId);
+            }, 500); // 500ms delay for better responsiveness
+        }
+    });
+    
+    // Keep Enter key functionality for immediate validation (optional)
+    document.getElementById('serialNumber').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const serialNumber = this.value.trim(); // Normalize consistently
+
+            // Clear any pending timeout since user pressed Enter
+            if (serialValidationTimeout) {
+                clearTimeout(serialValidationTimeout);
+            }
+            
+            if (serialNumber && !currentValidatedSerials.includes(serialNumber)) {
+                validationRequestId++; // Increment request ID for consistency
+                validateSerialNumber(serialNumber, validationRequestId);
+            }
+        }
+    });
+    
+    function validateSerialNumber(serialNumber, requestId = null) {
+        const itemCode = document.getElementById('modalItemCode').value;
+        const warehouse = document.getElementById('modalWarehouse').value;
+        
+        fetch('/so-against-invoice/api/validate-serial', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                item_code: itemCode,
+                warehouse_code: warehouse,
+                serial_number: serialNumber
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Check if this response is still relevant (not superseded by newer request)
+            if (requestId && requestId !== validationRequestId) {
+                return; // Ignore out-of-order response
+            }
+            
+            if (data.success) {
+                // Normalize serial number before adding
+                const normalizedSerial = serialNumber;
+                
+                // Add to validated serials if not already present
+                if (!currentValidatedSerials.includes(normalizedSerial)) {
+                    currentValidatedSerials.push(normalizedSerial);
+                    addSerialToList(normalizedSerial);
+                }
+                
+                // Clear input
+                document.getElementById('serialNumber').value = '';
+                
+                // Check if we've reached the limit
+                if (currentValidatedSerials.length >= currentOnHand) {
+                    document.getElementById('serialNumber').disabled = true;
+                    document.getElementById('serialNumber').placeholder = 'Limit reached';
+                }
+                
+                // Show add button when we have serials
+                document.getElementById('addToValidatedBtn').style.display = 'block';
+                showSuccess(`Serial ${serialNumber} added successfully`);
+                
+            } else {
+                showError('Invalid serial number: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showError('Error validating serial: ' + error.message);
+        });
+    }
+    
+    function addSerialToList(serialNumber) {
+        const container = document.getElementById('serialNumbersContainer');
+        const serialDiv = document.createElement('div');
+        serialDiv.className = 'd-flex justify-content-between align-items-center mb-1';
+        serialDiv.innerHTML = `
+            <span class="badge bg-success">${serialNumber}</span>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeSerial('${serialNumber}', this)">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        container.appendChild(serialDiv);
+        document.getElementById('serialNumbersList').style.display = 'block';
+    }
+    
+    // Global function for removing serials
+    window.removeSerial = function(serialNumber, button) {
+        const index = currentValidatedSerials.indexOf(serialNumber);
+        if (index > -1) {
+            currentValidatedSerials.splice(index, 1);
+            button.parentElement.remove();
+            
+            // Re-enable input if we were at limit
+            if (currentValidatedSerials.length < currentOnHand) {
+                document.getElementById('serialNumber').disabled = false;
+                document.getElementById('serialNumber').placeholder = 'Enter serial number (auto-validates)';
+            }
+            
+            // Hide add button if no serials
+            if (currentValidatedSerials.length === 0) {
+                document.getElementById('addToValidatedBtn').style.display = 'none';
+                document.getElementById('serialNumbersList').style.display = 'none';
+            }
+        }
+    };
+    
+    // Quantity input validation (for non-serial items)
+    document.getElementById('quantity').addEventListener('blur', function() {
+        const quantity = parseInt(this.value);
+        
+        if (quantity > 0 && quantity <= currentOnHand) {
+            document.getElementById('addToValidatedBtn').style.display = 'block';
+            showSuccess(`Quantity ${quantity} is valid`);
+        } else {
+            document.getElementById('addToValidatedBtn').style.display = 'none';
+            showError(`Entered quantity exceeds available stock (${currentOnHand})`);
+        }
+    });
+    
+    // Add to validated grid
+    document.getElementById('addToValidatedBtn').addEventListener('click', function() {
+        const itemId = document.getElementById('modalItemId').value;
+        const itemCode = document.getElementById('modalItemCode').value;
+        const validatedQty = currentManSerNum === 'Y' ? currentValidatedSerials.length : 
+                           document.getElementById('quantity').value;
+        
+        const requestData = {
+            item_id: itemId,
+            validated_quantity: validatedQty
+        };
+        
+        if (currentManSerNum === 'Y') {
+            requestData.serial_numbers = currentValidatedSerials;
+        }
+        
+        fetch('/so-against-invoice/api/add-validated-item', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('itemValidationModal'));
+                modal.hide();
+                
+                // Refresh the page to show updated grids
+                window.location.reload();
+            } else {
+                showError('Failed to add item: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showError('Error adding item: ' + error.message);
+        });
+    });
+    
+    // Remove from validated grid
+    document.querySelectorAll('.remove-validated-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            
+            if (confirm('Remove this item from validated grid?')) {
+                fetch('/so-against-invoice/api/remove-validated-item', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ item_id: itemId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert('Failed to remove item: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
+        });
+    });
+    
+    function showError(message) {
+        document.getElementById('validationResult').innerHTML = 
+            `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
+        document.getElementById('validationResult').style.display = 'block';
+    }
+    
+    function showSuccess(message) {
+        document.getElementById('validationResult').innerHTML = 
+            `<div class="alert alert-success"><i class="fas fa-check"></i> ${message}</div>`;
+        document.getElementById('validationResult').style.display = 'block';
+    }
+    
+    // Post invoice
+    document.getElementById('postInvoiceBtn')?.addEventListener('click', function() {
+        if (!confirm('Are you sure you want to post this invoice to SAP B1?')) {
+            return;
+        }
+        
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
+        
+        fetch('/so-against-invoice/api/post-invoice-to-sap', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ doc_id: docId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Invoice posted successfully as SAP B1 Draft! Draft Number: ${data.sap_draft_number}`);
+                window.location.reload();
+            } else {
+                alert(`Error posting invoice: ${data.error}`);
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-paper-plane"></i> Post Invoice to SAP B1';
+            }
+        })
+        .catch(error => {
+            alert(`Error posting invoice: ${error.message}`);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-paper-plane"></i> Post Invoice to SAP B1';
+        });
+    });
+    
+    // Data Sync functionality
+    document.getElementById('syncSODataBtn')?.addEventListener('click', function() {
+        if (!confirm('This will sync the latest Sales Order data from SAP B1. Any unsaved changes may be overwritten. Continue?')) {
+            return;
+        }
+        
+        const syncBtn = this;
+        const originalText = syncBtn.innerHTML;
+        
+        // Disable button and show loading state
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        
+        fetch('/so-against-invoice/api/sync-so-data', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ doc_id: docId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message with details
+                let message = data.message;
+                if (data.changes) {
+                    const { lines_added, lines_updated, lines_removed } = data.changes;
+                    const totalChanges = lines_added + lines_updated + lines_removed;
+                    
+                    if (totalChanges > 0) {
+                        message += `\n\nChanges made:`;
+                        if (lines_added > 0) message += `\n• ${lines_added} lines added`;
+                        if (lines_updated > 0) message += `\n• ${lines_updated} lines updated`;
+                        if (lines_removed > 0) message += `\n• ${lines_removed} lines removed`;
+                        message += `\n\nTotal lines: ${data.total_lines}`;
+                        
+                        // Reload page to show updated data
+                        alert(message);
+                        window.location.reload();
+                    } else {
+                        alert(message + '\n\nNo changes were needed.');
+                    }
+                } else {
+                    alert(message);
+                }
+                
+                // Re-enable button
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = originalText;
+            } else {
+                // Show error message
+                alert(`Sync failed: ${data.error}`);
+                
+                // Re-enable button
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            alert(`Sync error: ${error.message}`);
+            
+            // Re-enable button
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = originalText;
+        });
+    });
+    
+    // Auto-sync functionality - automatically sync SO data when document opens
+    // Only sync if document has SO data and is not already posted
+    {% if document.so_doc_entry and document.status != 'posted' and document.items %}
+    autoSyncSOData();
+    {% endif %}
+    
+    function autoSyncSOData() {
+        // Show subtle notification that auto-sync is happening
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-info alert-dismissible fade show position-fixed';
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        notification.innerHTML = `
+            <i class="fas fa-sync-alt fa-spin"></i> Auto-syncing latest SO data from SAP B1...
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        fetch('/so-against-invoice/api/sync-so-data', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ doc_id: docId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remove the notification
+            notification.remove();
+            
+            if (data.success) {
+                // Check if there were any changes
+                if (data.changes) {
+                    const { lines_added, lines_updated, lines_removed } = data.changes;
+                    const totalChanges = lines_added + lines_updated + lines_removed;
+                    
+                    if (totalChanges > 0) {
+                        // Show success notification with changes
+                        const successNotification = document.createElement('div');
+                        successNotification.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                        successNotification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 350px;';
+                        successNotification.innerHTML = `
+                            <strong><i class="fas fa-check-circle"></i> SO Data Synced!</strong><br>
+                            <small>
+                                ${lines_added > 0 ? `• ${lines_added} lines added<br>` : ''}
+                                ${lines_updated > 0 ? `• ${lines_updated} lines updated<br>` : ''}
+                                ${lines_removed > 0 ? `• ${lines_removed} lines removed<br>` : ''}
+                                Total lines: ${data.total_lines}
+                            </small>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(successNotification);
+                        
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                            successNotification.remove();
+                        }, 5000);
+                        
+                        // Reload page to show updated data
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        // Show brief success notification
+                        const successNotification = document.createElement('div');
+                        successNotification.className = 'alert alert-info alert-dismissible fade show position-fixed';
+                        successNotification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+                        successNotification.innerHTML = `
+                            <i class="fas fa-check-circle"></i> SO data is up to date
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(successNotification);
+                        
+                        // Auto-hide after 3 seconds
+                        setTimeout(() => {
+                            successNotification.remove();
+                        }, 3000);
+                    }
+                } else {
+                    // Show basic success notification
+                    const successNotification = document.createElement('div');
+                    successNotification.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                    successNotification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+                    successNotification.innerHTML = `
+                        <i class="fas fa-check-circle"></i> ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(successNotification);
+                    
+                    // Auto-hide after 3 seconds
+                    setTimeout(() => {
+                        successNotification.remove();
+                    }, 3000);
+                }
+            } else {
+                // Show error notification (less intrusive than alert)
+                const errorNotification = document.createElement('div');
+                errorNotification.className = 'alert alert-warning alert-dismissible fade show position-fixed';
+                errorNotification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+                errorNotification.innerHTML = `
+                    <strong><i class="fas fa-exclamation-triangle"></i> Auto-sync notice:</strong><br>
+                    <small>${data.error}</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(errorNotification);
+                
+                // Auto-hide after 7 seconds
+                setTimeout(() => {
+                    errorNotification.remove();
+                }, 7000);
+            }
+        })
+        .catch(error => {
+            // Remove the loading notification
+            notification.remove();
+            
+            // Show error notification (less intrusive than alert)
+            const errorNotification = document.createElement('div');
+            errorNotification.className = 'alert alert-warning alert-dismissible fade show position-fixed';
+            errorNotification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+            errorNotification.innerHTML = `
+                <strong><i class="fas fa-exclamation-triangle"></i> Auto-sync failed:</strong><br>
+                <small>${error.message}</small>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(errorNotification);
+            
+            // Auto-hide after 7 seconds
+            setTimeout(() => {
+                errorNotification.remove();
+            }, 7000);
+        });
+    }
+});
+</script>
+{% endblock %}

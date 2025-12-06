@@ -1,0 +1,53 @@
+if line_item.status == 'verified':
+                logging.info(f"ℹ️ Pack already verified: GRN={grn_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'This pack was already verified',
+                    'already_verified': True,
+                    'detail_type': 'batch',
+                    'item_info': {
+                        'batch_number': header_grn.batch_number,
+                        'quantity': float(line_item.qty_in_pack),
+                        'grn_number': line_item.grn_number
+                    }
+                })
+
+            # Validate quantity matches (QR qty should match database quantity for this pack)
+            db_pack_qty = int(float(line_item.qty_in_pack))
+            qr_pack_qty = int(qr_qty)
+
+            if qr_pack_qty != db_pack_qty:
+                logging.error(f"❌ Quantity mismatch: GRN={grn_id}, QR Qty={qr_pack_qty}, DB Qty={db_pack_qty}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Quantity mismatch! QR label shows {qr_pack_qty} but database expects {db_pack_qty} for pack {grn_id}. Please verify the correct label.'
+                }), 400
+
+            # Mark as verified
+            line_item.status = 'verified'
+            # batch_details.status= 'verified'
+            # db.session.commit()
+            # 1. Mark this pack as verified
+            # batch_detail.status = 'verified'
+            db.session.commit()
+
+            # 2. Check if all packs for this GRN are verified
+            # pending = MultiGRNBatchDetailsLabel.query.filter(
+            #     verifyCheck.id == batch_details.batch_detail_id,
+            #     MultiGRNBatchDetailsLabel.status != 'verified'
+            # ).count()
+            batch_detail = MultiGRNBatchDetailsLabel.query.filter(
+            MultiGRNBatchDetailsLabel.grn_number.like(f"{header_grn}-%"),
+            MultiGRNBatchDetailsLabel.status != "verified"
+        ).count()
+
+            if batch_detail == 0:
+                # 3. All packs verified → Update summary table
+                header_grn.status = 'verified'
+                db.session.commit()
+                final_status = "All packs verified – header updated"
+                print(final_status)
+            else:
+                final_status = f"{header_grn} packs still pending"
+                print(final_status)
+            logging.info(f"✅ Pack verified: GRN={grn_id}, Batch={header_grn.batch_number}, Qty={qr_pack_qty}")

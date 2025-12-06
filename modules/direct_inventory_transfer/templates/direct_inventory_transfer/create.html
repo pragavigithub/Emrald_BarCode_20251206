@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+{% block title %}Create Direct Inventory Transfer{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Create Direct Inventory Transfer</h1>
+        <a href="{{ url_for('direct_inventory_transfer.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to List
+        </a>
+    </div>
+
+    <!-- Create Transfer Form -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="breadcrumb-item active">
+                <i class="fas fa-barcode"></i> Step 1: Scan Barcode / Enter Item Code
+            </h6>
+        </div>
+        <div class="card-body">
+            <form id="createTransferForm" method="POST" action="{{ url_for('direct_inventory_transfer.create') }}">
+                <!-- Step 1: Barcode Scanning -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="item_code" class="form-label">Barcode / Item Code <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="item_code" name="item_code"
+                                   placeholder="Scan QR Label or enter item code" autofocus required>
+                            <button type="button" class="btn btn-outline-primary" onclick="showQRScannerForTransfer()">
+                                <i class="fas fa-camera"></i> Scan
+                            </button>
+                        </div>
+                        <small class="text-muted">Scan QR label or enter item code - validation happens automatically</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Item Description</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="item_description" readonly>
+                            <span class="input-group-text" id="validationStatus" style="display: none;">
+                                <i class="fas fa-spinner fa-spin text-primary" id="validationSpinner"></i>
+                                <i class="fas fa-check-circle text-success" id="validationSuccess" style="display: none;"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Item Type</label>
+                        <input type="text" class="form-control" id="item_type_display" readonly>
+                        <input type="hidden" id="item_type" name="item_type">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="quantity" name="quantity"
+                               value="1" min="1" step="1" required>
+                    </div>
+                </div>
+
+                <!-- Serial Numbers Section (shown only for serial items) -->
+                <div id="serialSection" class="row" style="display: none;">
+                    <div class="col-md-12 mb-3">
+                        <label for="serial_numbers" class="form-label">Serial Numbers (comma-separated) <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="serial_numbers" name="serial_numbers" rows="3"
+                                  placeholder="Enter serial numbers separated by commas"></textarea>
+                        <small class="text-muted">Number of serial numbers must match the quantity</small>
+                    </div>
+                </div>
+
+                <!-- Batch Number Section (shown only for batch items) -->
+                <div id="batchSection" class="row" style="display: none;">
+                    <div class="col-md-12 mb-3">
+                        <label for="batch_number" class="form-label">Batch Number <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="batch_number" name="batch_number"
+                               placeholder="Enter batch number">
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Step 2: Warehouse Selection (only shown after item validation) -->
+                <div id="warehouseSection" style="display: none;">
+                    <div class="card-header py-3 mb-3">
+                        <h6 class="breadcrumb-item active">
+                            <i class="fas fa-warehouse"></i> Step 2: Select Warehouses
+                        </h6>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="from_warehouse" class="form-label">From Warehouse <span class="text-danger">*</span></label>
+                            <select class="form-select" id="from_warehouse" name="from_warehouse" required>
+                                <option value="">Select From Warehouse</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="to_warehouse" class="form-label">To Warehouse <span class="text-danger">*</span></label>
+                            <select class="form-select" id="to_warehouse" name="to_warehouse" required>
+                                <option value="">Select To Warehouse</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="from_bin" class="form-label">From Bin (Optional)</label>
+                            <select class="form-select" id="from_bin" name="from_bin">
+                                <option value="">Select From Bin Location</option>
+                            </select>
+                            <small class="text-muted" id="fromBinLoadingText"></small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="to_bin" class="form-label">To Bin (Optional)</label>
+                            <select class="form-select" id="to_bin" name="to_bin">
+                                <option value="">Select To Bin Location</option>
+                            </select>
+                            <small class="text-muted" id="toBinLoadingText"></small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                                  placeholder="Enter any notes or comments"></textarea>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Note:</strong> This will create the transfer document with the scanned item already included.
+                    </div>
+
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save"></i> Create Transfer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- QR Scanner Modal -->
+<div class="modal fade" id="qrScannerModal" tabindex="-1" aria-labelledby="qrScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qrScannerModalLabel">
+                    <i class="fas fa-camera"></i> Scan QR Code
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopQRScanner()"></button>
+            </div>
+            <div class="modal-body">
+                <div id="qrReaderContainer" style="display: none;">
+                    <div id="qr-reader" style="width: 100%;"></div>
+                </div>
+
+                <div id="qrScanResult" class="alert alert-success mt-3" style="display: none;">
+                    <strong>Scanned:</strong> <span id="qrScanResultText"></span>
+                </div>
+
+                <div id="qrScanError" class="alert alert-danger mt-3" style="display: none;"></div>
+
+                <div class="text-center mt-3">
+                    <p class="text-muted">Position the QR code within the camera view</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopQRScanner()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Html5Qrcode library for QR code scanning -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+let html5QrCode = null;
+let itemValidated = false;
+let validationTimeout = null;
+
+// Load warehouses on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadWarehouses();
+
+    // Add auto-validation on item code change
+    document.getElementById('item_code').addEventListener('input', function() {
+        clearTimeout(validationTimeout);
+        const itemCode = this.value.trim();
+
+        if (itemCode.length > 0) {
+            // Show loading indicator
+            document.getElementById('validationStatus').style.display = 'inline-flex';
+            document.getElementById('validationSpinner').style.display = 'inline';
+            document.getElementById('validationSuccess').style.display = 'none';
+
+            // Auto-validate after 500ms of no typing
+            validationTimeout = setTimeout(function() {
+                validateItem();
+            }, 500);
+        } else {
+            // Hide validation status if empty
+            document.getElementById('validationStatus').style.display = 'none';
+            resetValidation();
+        }
+    });
+
+    // Add warehouse change listeners to load bins
+    document.getElementById('from_warehouse').addEventListener('change', function() {
+        const warehouseCode = this.value;
+        if (warehouseCode) {
+            loadBinLocations(warehouseCode, 'from_bin', 'fromBinLoadingText');
+        }
+    });
+
+    document.getElementById('to_warehouse').addEventListener('change', function() {
+        const warehouseCode = this.value;
+        if (warehouseCode) {
+            loadBinLocations(warehouseCode, 'to_bin', 'toBinLoadingText');
+        }
+    });
+
+    // Handle modal close event
+    document.getElementById('qrScannerModal').addEventListener('hidden.bs.modal', function () {
+        stopQRScanner();
+    });
+});
+
+function loadWarehouses() {
+    fetch('/direct-inventory-transfer/api/get-warehouses')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const fromSelect = document.getElementById('from_warehouse');
+                const toSelect = document.getElementById('to_warehouse');
+
+                data.warehouses.forEach(wh => {
+                    const fromOption = new Option(wh.WarehouseName + ' (' + wh.WarehouseCode + ')', wh.WarehouseCode);
+                    const toOption = new Option(wh.WarehouseName + ' (' + wh.WarehouseCode + ')', wh.WarehouseCode);
+                    fromSelect.add(fromOption);
+                    toSelect.add(toOption);
+                });
+            } else {
+                console.error('Failed to load warehouses:', data.error);
+            }
+        })
+        .catch(error => console.error('Error loading warehouses:', error));
+}
+
+function loadBinLocations(warehouseCode, selectId, loadingTextId) {
+    const binSelect = document.getElementById(selectId);
+    const loadingText = document.getElementById(loadingTextId);
+
+    // Clear existing options
+    binSelect.innerHTML = '<option value="">Loading bin locations...</option>';
+    loadingText.textContent = 'Loading...';
+
+    fetch(`/direct-inventory-transfer/api/get-bin-locations?warehouse_code=${encodeURIComponent(warehouseCode)}`)
+        .then(response => response.json())
+        .then(data => {
+            binSelect.innerHTML = '<option value="">Select Bin Location (Optional)</option>';
+
+            if (data.success && data.bins && data.bins.length > 0) {
+                data.bins.forEach(bin => {
+                    const option = new Option(bin.BinCode, bin.BinCode);
+                    binSelect.add(option);
+                });
+                loadingText.textContent = `${data.bins.length} bin locations loaded`;
+                setTimeout(() => {
+                    loadingText.textContent = '';
+                }, 3000);
+            } else {
+                loadingText.textContent = 'No bin locations found';
+                setTimeout(() => {
+                    loadingText.textContent = '';
+                }, 3000);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading bin locations:', error);
+            binSelect.innerHTML = '<option value="">Select Bin Location (Optional)</option>';
+            loadingText.textContent = 'Error loading bin locations';
+            setTimeout(() => {
+                loadingText.textContent = '';
+            }, 3000);
+        });
+}
+
+function resetValidation() {
+    document.getElementById('item_description').value = '';
+    document.getElementById('item_type').value = '';
+    document.getElementById('item_type_display').value = '';
+    document.getElementById('warehouseSection').style.display = 'none';
+    document.getElementById('serialSection').style.display = 'none';
+    document.getElementById('batchSection').style.display = 'none';
+    itemValidated = false;
+}
+
+// QR Scanner for Inventory Transfer
+function showQRScannerForTransfer() {
+    const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
+    modal.show();
+
+    setTimeout(() => {
+        startQRScannerForTransfer();
+    }, 500);
+}
+
+function startQRScannerForTransfer() {
+    const qrReaderContainer = document.getElementById('qrReaderContainer');
+    const qrScanResult = document.getElementById('qrScanResult');
+    const qrScanError = document.getElementById('qrScanError');
+
+    qrReaderContainer.style.display = 'block';
+    qrScanResult.style.display = 'none';
+    qrScanError.style.display = 'none';
+
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+
+    const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText, decodedResult) => {
+            console.log(`QR Code scanned: ${decodedText}`);
+            processScannedQRLabel(decodedText);
+            stopQRScanner();
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
+            if (modal) {
+                modal.hide();
+            }
+        },
+        (errorMessage) => {
+            // Scanning errors are normal, ignore them
+        }
+    ).catch(err => {
+        console.error('Error starting QR scanner:', err);
+        qrScanError.textContent = 'Failed to start camera. Please check camera permissions and try again.';
+        qrScanError.style.display = 'block';
+        qrReaderContainer.style.display = 'none';
+    });
+}
+
+function stopQRScanner() {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then((ignore) => {
+            console.log('QR Code scanning stopped.');
+            document.getElementById('qrReaderContainer').style.display = 'none';
+        }).catch((err) => {
+            console.error('Error stopping QR scanner:', err);
+        });
+    }
+}
+
+function processScannedQRLabel(qrData) {
+    console.log('Processing scanned QR label:', qrData);
+
+    try {
+        // Try to parse as JSON
+        const parsedData = JSON.parse(qrData);
+        console.log('Parsed QR Data:', parsedData);
+
+        // Extract item code from JSON
+        const itemCode = parsedData.item || parsedData.id || parsedData.ItemCode || qrData;
+
+        // Show success message
+        document.getElementById('qrScanResultText').textContent = itemCode;
+        document.getElementById('qrScanResult').style.display = 'block';
+
+        // Set item code
+        document.getElementById('item_code').value = itemCode;
+
+        // Auto-fill quantity if available in QR code
+        if (parsedData.qty) {
+            document.getElementById('quantity').value = parsedData.qty;
+        }
+
+        // Auto-fill batch number if available in QR code
+        if (parsedData.batch) {
+            document.getElementById('batch_number').value = parsedData.batch;
+        }
+
+        // Trigger validation after a short delay
+        setTimeout(function() {
+            validateItem();
+        }, 500);
+
+    } catch (e) {
+        // If not JSON, use raw data
+        console.log('QR Data (not JSON):', qrData);
+
+        document.getElementById('qrScanResultText').textContent = qrData;
+        document.getElementById('qrScanResult').style.display = 'block';
+        document.getElementById('item_code').value = qrData;
+
+        // Trigger validation
+        setTimeout(function() {
+            validateItem();
+        }, 500);
+    }
+}
+
+function validateItem() {
+    const itemCode = document.getElementById('item_code').value.trim();
+
+    if (!itemCode) {
+        resetValidation();
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('item_code', itemCode);
+
+    fetch('/direct-inventory-transfer/api/validate-item', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success indicator
+            document.getElementById('validationSpinner').style.display = 'none';
+            document.getElementById('validationSuccess').style.display = 'inline';
+
+            // Update form fields
+            document.getElementById('item_description').value = data.item_description;
+            document.getElementById('item_type').value = data.item_type;
+            document.getElementById('item_type_display').value = data.item_type.charAt(0).toUpperCase() + data.item_type.slice(1);
+
+            // Handle serial/batch/non-serial items
+            if (data.item_type === 'serial') {
+                document.getElementById('serialSection').style.display = 'block';
+                document.getElementById('batchSection').style.display = 'none';
+                document.getElementById('serial_numbers').required = true;
+                document.getElementById('batch_number').required = false;
+                document.getElementById('serial_numbers').focus();
+            } else if (data.item_type === 'batch') {
+                document.getElementById('serialSection').style.display = 'none';
+                document.getElementById('batchSection').style.display = 'block';
+                document.getElementById('serial_numbers').required = false;
+                document.getElementById('batch_number').required = true;
+
+                // If batch number was already filled from QR code, don't focus
+                if (!document.getElementById('batch_number').value) {
+                    document.getElementById('batch_number').focus();
+                }
+            } else {
+                document.getElementById('serialSection').style.display = 'none';
+                document.getElementById('batchSection').style.display = 'none';
+                document.getElementById('serial_numbers').required = false;
+                document.getElementById('batch_number').required = false;
+            }
+
+            document.getElementById('warehouseSection').style.display = 'block';
+            itemValidated = true;
+
+            // Show success alert
+            showAlert('success', 'Item validated successfully!');
+        } else {
+            // Hide validation indicator
+            document.getElementById('validationStatus').style.display = 'none';
+
+            // Show error
+            showAlert('danger', 'Validation failed: ' + data.error);
+            resetValidation();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('validationStatus').style.display = 'none';
+        showAlert('danger', 'Error validating item');
+        resetValidation();
+    });
+}
+
+function showAlert(type, message) {
+    // Remove any existing alerts
+    const existingAlerts = document.querySelectorAll('.alert-notification');
+    existingAlerts.forEach(alert => alert.remove());
+
+    // Create new alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show alert-notification`;
+    alertDiv.style.position = 'fixed';
+    alertDiv.style.top = '20px';
+    alertDiv.style.right = '20px';
+    alertDiv.style.zIndex = '9999';
+    alertDiv.style.minWidth = '300px';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    document.body.appendChild(alertDiv);
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+document.getElementById('createTransferForm').addEventListener('submit', function(e) {
+    if (!itemValidated) {
+        e.preventDefault();
+        showAlert('warning', 'Please wait for item validation to complete');
+        return false;
+    }
+
+    const fromWarehouse = document.getElementById('from_warehouse').value;
+    const toWarehouse = document.getElementById('to_warehouse').value;
+
+    if (fromWarehouse === toWarehouse) {
+        e.preventDefault();
+        showAlert('danger', 'From Warehouse and To Warehouse must be different');
+        return false;
+    }
+
+    const itemType = document.getElementById('item_type').value;
+    const quantity = parseInt(document.getElementById('quantity').value);
+
+    if (itemType === 'serial') {
+        const serialNumbers = document.getElementById('serial_numbers').value.trim();
+        if (!serialNumbers) {
+            e.preventDefault();
+            showAlert('danger', 'Serial numbers are required for serial-managed items');
+            return false;
+        }
+        const serialCount = serialNumbers.split(',').filter(s => s.trim()).length;
+        if (serialCount !== quantity) {
+            e.preventDefault();
+            showAlert('danger', `Number of serial numbers (${serialCount}) must match quantity (${quantity})`);
+            return false;
+        }
+    }
+
+    if (itemType === 'batch') {
+        const batchNumber = document.getElementById('batch_number').value.trim();
+        if (!batchNumber) {
+            e.preventDefault();
+            showAlert('danger', 'Batch number is required for batch-managed items');
+            return false;
+        }
+    }
+});
+</script>
+
+{% endblock %}

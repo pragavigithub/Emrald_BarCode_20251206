@@ -1,0 +1,83 @@
+Keep updating the MySQL migration file whenever there are any database changes.
+
+Inventory Transfer Module – Requirement Explanation
+
+When the user selects the Document Series and Document Number, we fetch the related DocEntry.
+Using this DocEntry, we call the SAP B1 Service Layer API to get the Inventory Transfer Request header and its line items.
+
+Right now, the line items are stored temporarily in the UI.
+
+Now the requirement is:
+
+✅ Store these transfer line items permanently in MySQL,
+
+linked using a foreign key to the saved Transfer Document (header) record.
+
+After saving, the UI should fetch and display the Transfer Document header along with all related line items directly from the MySQL database.
+
+The SAP B1 JSON response below should be stored exactly in the MySQL database, because this same structure will be used later when posting the document back to SAP B1.
+
+📌 JSON Response to Be Stored in MySQL
+{
+  "odata.metadata": "https://192.168.1.2:50000/b1s/v1/$metadata#InventoryTransferRequests",
+  "value": [
+    {
+      "DocEntry": 31,
+      "FromWarehouse": "7000-FG",
+      "ToWarehouse": "7000-QFG",
+      "DocNum": 5000022,
+      "BPLID": 5,
+      "BPLName": "ORD-CHENNAI",
+      "DocumentStatus": "bost_Open",
+      "DocDate": "2025-11-27T00:00:00Z",
+      "DueDate": "2025-11-27T00:00:00Z",
+      "StockTransferLines": [
+        {
+          "LineNum": 0,
+          "DocEntry": 31,
+          "ItemCode": "BatchItem_01",
+          "ItemDescription": "BatchItem_01",
+          "Quantity": 20.0,
+          "WarehouseCode": "7000-QFG",
+          "FromWarehouseCode": "7000-FG",
+          "RemainingOpenInventoryQuantity": 20.0,
+          "LineStatus": "bost_Open",
+          "UoMCode": "Manual"
+        },
+        {
+          "LineNum": 1,
+          "DocEntry": 31,
+          "ItemCode": "BatchItem_002",
+          "ItemDescription": "BatchItem_002",
+          "RemainingOpenInventoryQuantity": 20.0,
+          "Quantity": 20.0,
+          "WarehouseCode": "7000-QFG",
+          "FromWarehouseCode": "7000-FG",
+          "UoMCode": "Manual",
+          "LineStatus": "bost_Open"
+        },
+        {
+          "LineNum": 2,
+          "DocEntry": 31,
+          "ItemCode": "BatchItem_003",
+          "ItemDescription": "BatchItem_003",
+          "Quantity": 20.0,
+          "WarehouseCode": "7000-QFG",
+          "FromWarehouseCode": "7000-FG",
+          "UoMCode": "Manual",
+          "LineStatus": "bost_Open"
+        }
+      ]
+    }
+  ]
+}
+
+📌 Important Notes for Developer
+
+Save Transfer Document Header → separate table
+
+Save Transfer Line Items → separate table linked by header_id (foreign key)
+
+Use the above JSON structure exactly while storing
+
+Later, MySQL data will be used to post the final document to SAP B1

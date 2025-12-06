@@ -1,0 +1,190 @@
+Multi-GRN Module – Item Validation + JSON Auto-Generation Logic
+
+Your module must automatically generate the correct GRPO JSON structure based on whether the item is:
+
+Batch-managed
+
+Serial-managed
+
+Non batch / non serial managed
+
+Validation must be done using the following SAP B1 Service Layer SQL Query:
+
+🔍 1. Item Batch / Serial Validation
+URL
+POST https://192.168.0.120:50000/b1s/v1/SQLQueries('ItemCode_Batch_Serial_Val')/List
+
+Request Body
+{
+  "ParamList": "itemCode='BatchItem_01'"
+}
+
+Response Format
+{
+  "value": [
+    {
+      "ItemCode": "BatchItem_01",
+      "BatchNum": "Y",
+      "SerialNum": "N",
+      "NonBatch_NonSerialMethod": "A"
+    }
+  ]
+}
+
+🧠 2. JSON Creation Rules
+Type 1 — Batch Managed Items
+
+If:
+
+"BatchNum": "Y"
+
+
+Then you must include the BatchNumbers section.
+
+Example (Corrected Type 1 JSON):
+{
+  "CardCode": "3D SPL",
+  "DocDate": "2025-11-14",
+  "DocDueDate": "2025-11-14",
+  "Comments": "Auto-created from batch 91",
+  "NumAtCard": "BATCH-91-PO-252630035",
+  "BPL_IDAssignedToInvoice": 5,
+  "DocumentLines": [
+    {
+      "BaseType": 22,
+      "BaseEntry": 3673,
+      "BaseLine": 1,
+      "ItemCode": "BatchItem_01",
+      "Quantity": 10.0,
+      "WarehouseCode": "7000-FG",
+      "DocumentLinesBinAllocations": [
+        {
+          "BinAbsEntry": 251,
+          "Quantity": 10.0
+        }
+      ],
+      "BatchNumbers": [
+        {
+          "BatchNumber": "20251112-BatchItem_-1",
+          "Quantity": 1.0,
+          "ManufacturerSerialNumber": "MFG-SN-002",
+          "InternalSerialNumber": "INT-SN-002",
+          "ExpiryDate": "2025-10-18T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}
+
+Type 2 — Non Batch + Non Serial Managed Items
+
+If:
+
+"BatchNum": "N"
+"SerialNum": "N"
+
+
+Then remove BatchNumbers completely.
+
+Example (Corrected Type 2 JSON):
+{
+  "CardCode": "3D SPL",
+  "DocDate": "2025-11-14",
+  "DocDueDate": "2025-11-14",
+  "Comments": "Auto-created from batch 91",
+  "NumAtCard": "BATCH-91-PO-252630035",
+  "BPL_IDAssignedToInvoice": 5,
+  "DocumentLines": [
+    {
+      "BaseType": 22,
+      "BaseEntry": 3673,
+      "BaseLine": 0,
+      "ItemCode": "Non_Sr_Bt",
+      "Quantity": 10.0,
+      "WarehouseCode": "7000-FG",
+      "DocumentLinesBinAllocations": [
+        {
+          "BinAbsEntry": 251,
+          "Quantity": 10.0
+        }
+      ]
+    }
+  ]
+}
+
+Type 3 — Combined GRPO Including Batch + Non-Batch Items
+
+If GRPO contains mixed items, include Batch section only for batch-managed items.
+
+Corrected Type 3 JSON:
+{
+  "CardCode": "3D SPL",
+  "DocDate": "2025-11-14",
+  "DocDueDate": "2025-11-14",
+  "Comments": "Auto-created from batch 91",
+  "NumAtCard": "BATCH-91-PO-252630035",
+  "BPL_IDAssignedToInvoice": 5,
+  "DocumentLines": [
+    {
+      "BaseType": 22,
+      "BaseEntry": 3673,
+      "BaseLine": 1,
+      "ItemCode": "BatchItem_01",
+      "Quantity": 10.0,
+      "WarehouseCode": "7000-FG",
+      "DocumentLinesBinAllocations": [
+        {
+          "BinAbsEntry": 251,
+          "Quantity": 10.0
+        }
+      ],
+      "BatchNumbers": [
+        {
+          "BatchNumber": "20251112-BatchItem_-1",
+          "Quantity": 1.0,
+          "ManufacturerSerialNumber": "MFG-SN-002",
+          "InternalSerialNumber": "INT-SN-002",
+          "ExpiryDate": "2025-10-18T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "BaseType": 22,
+      "BaseEntry": 3673,
+      "BaseLine": 0,
+      "ItemCode": "Non_Sr_Bt",
+      "Quantity": 10.0,
+      "WarehouseCode": "7000-FG",
+      "DocumentLinesBinAllocations": [
+        {
+          "BinAbsEntry": 251,
+          "Quantity": 10.0
+        }
+      ]
+    }
+  ]
+}
+
+📦 3. BinAbsEntry Lookup
+
+To fetch the correct BinAbsEntry, use:
+
+URL
+GET https://192.168.0.120:50000/b1s/v1/BinLocations?$filter=BinCode eq '7000-FG-A101'
+
+Response
+{
+  "value": [
+    {
+      "AbsEntry": 251,
+      "Warehouse": "7000-FG",
+      "Sublevel1": "A101",
+      "BinCode": "7000-FG-A101"
+    }
+  ]
+}
+
+
+Use:
+
+BinAbsEntry = 251

@@ -1,0 +1,148 @@
+function showQRScannerForTransfer() {
+    const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
+    modal.show();
+    
+    setTimeout(() => {
+        startQRScannerForTransfer();
+    }, 500);
+}
+
+function startQRScannerForTransfer() {
+    const qrReaderContainer = document.getElementById('qrReaderContainer');
+    const qrScanResult = document.getElementById('qrScanResult');
+    const qrScanError = document.getElementById('qrScanError');
+    
+    qrReaderContainer.style.display = 'block';
+    qrScanResult.style.display = 'none';
+    qrScanError.style.display = 'none';
+    
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText, decodedResult) => {
+            console.log(`QR Code scanned: ${decodedText}`);
+            processScannedQRLabel(decodedText);
+            stopQRScanner();
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
+            modal.hide();
+        },
+        (errorMessage) => {
+            // Scanning errors are normal, ignore them
+        }
+    ).catch(err => {
+        console.error('Error starting QR scanner:', err);
+        qrScanError.textContent = 'Failed to start camera. Please check camera permissions.';
+        qrScanError.style.display = 'block';
+    });
+}
+
+function processScannedQRLabel(qrData) {
+    console.log('Processing scanned QR label:', qrData);
+    
+    const loadingIndicator = document.getElementById('loading_indicator');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
+    }
+    
+    const requestedQty = parseFloat(document.getElementById('quantity').value) || 0;
+    const targetItemCode = document.getElementById('item_code').value || '';
+    
+    fetch('{{ url_for("inventory_transfer.api_scan_qr_label") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            qr_data: qrData,
+            transfer_id: {{ transfer.id }},
+            requested_qty: requestedQty,
+            target_item_code: targetItemCode
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        
+        if (data.success) {
+            console.log('✅ QR scan successful:', data);
+            
+            populateAddItemModalFromQR(data);
+            
+            showAlert('success', data.message || 'QR label scanned successfully!');
+            
+            if (data.is_complete) {
+                showAlert('success', `✅ All packs scanned! Total: ${data.total_scanned_qty}/${data.requested_qty}`);
+            }
+        } else {
+            console.error('❌ QR scan failed:', data.error);
+            showAlert('danger', data.error || 'Failed to process QR label');
+        }
+    })
+    .catch(error => {
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+        }
+        console.error('Error processing QR label:', error);
+        showAlert('danger', 'Error processing QR label: ' + error.message);
+    });
+}
+
+function populateAddItemModalFromQR(scanData) {
+    if (scanData.item_code) {
+        const itemCodeField = document.getElementById('item_code');
+        if (itemCodeField && !itemCodeField.value) {
+            itemCodeField.value = scanData.item_code;
+            
+            setTimeout(() => {
+                if (typeof validateItemCodeFromSAP === 'function') {
+                    validateItemCodeFromSAP();
+                }
+            }, 300);
+        }
+    }
+    
+    if (scanData.scanned_packs && scanData.scanned_packs.length > 0) {
+        renderScannedPacks(scanData);
+        
+        const availableQtyField = document.getElementById('availabe_quantity');
+        if (availableQtyField) {
+            availableQtyField.value = scanData.total_scanned_qty || 0;
+        }
+        
+        const uniqueBatches = [...new Set(scanData.scanned_packs.map(p => p.batch_number).filter(b => b))];
+        
+        if (uniqueBatches.length > 0) {
+            const batchSelect = document.getElementById('batch_number');
+            if (batchSelect) {
+                batchSelect.innerHTML = '<option value="">Select batch</option>';
+                
+                uniqueBatches.forEach(batch => {
+                    const option = document.createElement('option');
+                    option.value = batch;
+                    const packInfo = scanData.scanned_packs.filter(p => p.batch_number === batch);
+                    const totalQty = packInfo.reduce((sum, p) => sum + (p.qty || 0), 0);
+                    const expDate = packInfo[0].exp_date || 'N/A';
+                    option.textContent = `${batch}, Qty: ${totalQty}, Exp: ${expDate}`;
+                    if (uniqueBatches.length === 1) {
+                        option.selected = true;
+                    }
+                    batchSelect.appendChild(option);
+                });
+                
+                const batchGroup = document.getElementById('batch_number_group');
+                if (batchGroup) {
+                    batchGroup.style.display = 'block';
+                }
+            }
+        }
+    }
+    

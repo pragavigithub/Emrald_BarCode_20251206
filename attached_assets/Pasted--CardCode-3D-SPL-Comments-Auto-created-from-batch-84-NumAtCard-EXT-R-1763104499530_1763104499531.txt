@@ -1,0 +1,92 @@
+{
+    "CardCode": "3D SPL",
+    "Comments": "Auto-created from batch 84",
+    "NumAtCard": "EXT-REF-20251013-004",
+    "BPL_IDAssignedToInvoice": 5,
+    "DocumentLines": [
+        {
+            "LineNum": 0,
+            "ItemCode": "BatchItem_01",//BatchManagedItem
+            "Quantity": 1.0,
+            "BaseType": 22,
+            "BaseEntry": 3669,
+            "BaseLine": 1,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": "968",
+                    "Quantity": 10.0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "20251112-BatchItem_-1",
+                    "Quantity": 1.0,
+                    "ManufacturerSerialNumber": "MFG-SN-002",
+                    "InternalSerialNumber": "INT-SN-002",
+                    "ExpiryDate": "2025-10-18T00:00:00Z"
+                }
+            ],
+            "SerialNumbers": []
+        },
+        {
+            "LineNum": 1,
+            "ItemCode": "Non_sr_bt",//NonSerialNonBatchMangedItem
+            "Quantity": 1.0,
+            "BaseType": 22,
+            "BaseEntry": 3669,
+            "BaseLine": 2,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": "231",
+                    "Quantity": 10.0
+                }
+            ],
+            "BatchNumbers": [],
+            "SerialNumbers": []
+        },
+        {
+            "LineNum": 2,
+            "BaseType": 22,
+            "BaseEntry": 3670,
+            "BaseLine": 0,
+            "ItemCode": "BatchItem_01",//BatchManagedItem
+            "Quantity": 1.0,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": "968",
+                    "Quantity": 10.0
+                }
+            ],
+            "BatchNumbers": [
+                {
+                    "BatchNumber": "483480042",
+                    "Quantity": 1.0,
+                    "ManufacturerSerialNumber": "MFG-SN-002",
+                    "InternalSerialNumber": "INT-SN-002",
+                    "ExpiryDate": "2025-10-18T00:00:00Z"
+                }
+            ],
+            "SerialNumbers": []
+        },
+        {
+            "LineNum": 3,
+            "ItemCode": "Non_sr_bt",//NonSerialNonBatchMangedItem
+            "Quantity": 1.0,
+            "BaseType": 22,
+            "BaseEntry": 3670,
+            "BaseLine": 1,
+            "WarehouseCode": "7000-FG",
+            "DocumentLinesBinAllocations": [
+                {
+                    "BinAbsEntry": "968",
+                    "Quantity": 10.0
+                }
+            ],
+            "BatchNumbers": [],
+            "SerialNumbers": []
+        }
+    ]
+}

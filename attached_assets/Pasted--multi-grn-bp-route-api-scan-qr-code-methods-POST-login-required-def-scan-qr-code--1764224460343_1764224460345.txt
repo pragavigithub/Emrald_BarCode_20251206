@@ -1,0 +1,164 @@
+@multi_grn_bp.route('/api/scan-qr-code', methods=['POST'])
+@login_required
+def scan_qr_code():
+    """API endpoint to scan QR code and mark line item as verified - with quantity validation"""
+    try:
+        data = request.get_json()
+        qr_data = data.get('qr_data', '')
+
+        if not qr_data:
+            return jsonify({'success': False, 'error': 'QR code data is required'}), 400
+
+        try:
+            qr_json = json.loads(qr_data)
+            grn_id = qr_json.get('id', '')  # Full GRN with pack number (e.g., MGN-13-22-1-1)
+            qr_qty = qr_json.get('qty', 0)  # Quantity from QR code
+        except:
+            return jsonify({'success': False, 'error': 'Invalid QR code format'}), 400
+
+        if not grn_id:
+            return jsonify({'success': False, 'error': 'QR code ID is missing'}), 400
+
+        logging.info(f"🔍 QR scan received: GRN ID={grn_id}, Qty={qr_qty}")
+
+        from modules.multi_grn_creation.models import MultiGRNBatchDetails, MultiGRNSerialDetails, \
+            MultiGRNBatchDetailsLabel
+
+        # Parse GRN number to extract header and pack identifiers
+        # Example: MGN-13-22-1-1 → header: MGN-13-22, pack: MGN-13-22-1
+        parts = grn_id.split("-")
+        main_grn = "-".join(parts[:5])  # Pack GRN: MGN-13-22-1
+        main_grns = "-".join(parts[:4])  # Header GRN: MGN-13-22
+        
+        logging.info(f"🔍 Searching DB for pack: {main_grn}, header: {main_grns}")
+
+        # Find the header in MultiGRNBatchDetails table
+        header_grn = MultiGRNBatchDetails.query.filter_by(grn_number=main_grns).first()
+        
+        # Find the specific pack in MultiGRNBatchDetailsLabel table
+        line_item = MultiGRNBatchDetailsLabel.query.filter_by(grn_number=main_grn).first()
+        
+        if not line_item:
+            logging.error(f"❌ Pack not found in database: GRN={grn_id}")
+            return jsonify({
+                'success': False,
+                'error': f'Pack {grn_id} not found in this batch. Please ensure you are scanning the correct QR label for this batch.'
+            }), 404
+        
+        if not header_grn:
+            logging.error(f"❌ Header not found in database: GRN={main_grns}")
+            return jsonify({
+                'success': False,
+                'error': f'Header {main_grns} not found in database.'
+            }), 404
+
+        # Check if already verified
+        if line_item.status == 'verified':
+            logging.info(f"ℹ️ Pack already verified: GRN={grn_id}")
+            return jsonify({
+                'success': True,
+                'message': 'This pack was already verified',
+                'already_verified': True,
+                'detail_type': 'batch',
+                'item_info': {
+                    'batch_number': header_grn.batch_number,
+                    'quantity': float(line_item.qty_in_pack),
+                    'grn_number': line_item.grn_number
+                }
+            })
+
+        # Validate quantity matches (QR qty should match database quantity for this pack)
+        db_pack_qty = int(float(line_item.qty_in_pack))
+        qr_pack_qty = int(qr_qty)
+
+        if qr_pack_qty != db_pack_qty:
+            logging.error(f"❌ Quantity mismatch: GRN={grn_id}, QR Qty={qr_pack_qty}, DB Qty={db_pack_qty}")
+            return jsonify({
+                'success': False,
+                'error': f'Quantity mismatch! QR label shows {qr_pack_qty} but database expects {db_pack_qty} for pack {grn_id}. Please verify the correct label.'
+            }), 400
+
+        # 1. Mark this pack as verified
+        line_item.status = 'verified'
+        db.session.commit()
+        logging.info(f"✅ Pack verified: GRN={grn_id}, Batch={header_grn.batch_number}, Qty={qr_pack_qty}")
+
+        # 2. Check if ALL packs for THIS specific header are verified
+        # CRITICAL FIX: Only check packs belonging to this header (main_grns)
+        pending_packs_count = MultiGRNBatchDetailsLabel.query.filter(
+            MultiGRNBatchDetailsLabel.grn_number.like(f"{main_grns}-%"),
+            MultiGRNBatchDetailsLabel.status != 'verified'
+        ).count()
+
+        if pending_packs_count == 0:
+            # 3. All packs verified for this header → Update header status
+            header_grn.status = 'verified'
+            db.session.commit()
+            logging.info(f"✅ All packs verified for header {main_grns} - Header status updated to verified")
+            final_status = "All packs verified – header updated"
+        else:
+            logging.info(f"📦 {pending_packs_count} packs still pending for header {main_grns}")
+            final_status = f"{pending_packs_count} packs still pending"
+
+        return jsonify({
+            'success': True,
+            'message': f'Pack verified successfully! Batch: {header_grn.batch_number}, Qty: {qr_pack_qty} matched. {final_status}',
+            'detail_type': 'batch',
+            'item_info': {
+                'batch_number': header_grn.batch_number,
+                'quantity': float(line_item.qty_in_pack),
+                'grn_number': line_item.grn_number
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"❌ Error scanning QR code: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+Above code i tried to make status changing line table and parent table . Line Table one by one status verified  Once all the Lines are Verifed finaly Parent table status must be change to Verified .
+
+Example : 1
+multi_grn_batch_details (parent)
+    ├─ id: 1
+    ├─ batch_number: "20251123-BatchItem_1"
+    ├─ quantity: 7.000 (total)
+    ├─ no_of_packs: 3
+    └─ grn_number: "MGN-19-43-1"
+    └─ status: "pending"
+
+
+multi_grn_batch_details_label (child - NEW TABLE)
+    ├─ id: 1, batch_detail_id: 1, pack_number: 1, qty_in_pack: 3, grn_number: "MGN-19-43-1-1",, status: "verified" 
+    ├─ id: 2, batch_detail_id: 1, pack_number: 2, qty_in_pack: 2, grn_number: "MGN-19-43-1-2", status: "pending" 
+    └─ id: 3, batch_detail_id: 1, pack_number: 3, qty_in_pack: 2, grn_number: "MGN-19-43-1-3", status: "pending"
+
+example :2
+multi_grn_batch_details (parent)
+    ├─ id: 1
+    ├─ batch_number: "20251123-BatchItem_1"
+    ├─ quantity: 7.000 (total)
+    ├─ no_of_packs: 3
+    └─ grn_number: "MGN-19-43-1"
+    └─ status: "pending"
+
+
+multi_grn_batch_details_label (child - NEW TABLE)
+    ├─ id: 1, batch_detail_id: 1, pack_number: 1, qty_in_pack: 3, grn_number: "MGN-19-43-1-1",, status: "verified" 
+    ├─ id: 2, batch_detail_id: 1, pack_number: 2, qty_in_pack: 2, grn_number: "MGN-19-43-1-2", status: "verified" 
+    └─ id: 3, batch_detail_id: 1, pack_number: 3, qty_in_pack: 2, grn_number: "MGN-19-43-1-3", status: "pending"
+
+example :3
+multi_grn_batch_details (parent)
+    ├─ id: 1
+    ├─ batch_number: "20251123-BatchItem_1"
+    ├─ quantity: 7.000 (total)
+    ├─ no_of_packs: 3
+    └─ grn_number: "MGN-19-43-1"
+    └─ status: "verified"
+
+
+multi_grn_batch_details_label (child - NEW TABLE)
+    ├─ id: 1, batch_detail_id: 1, pack_number: 1, qty_in_pack: 3, grn_number: "MGN-19-43-1-1",, status: "verified" 
+    ├─ id: 2, batch_detail_id: 1, pack_number: 2, qty_in_pack: 2, grn_number: "MGN-19-43-1-2", status: "verified" 
+    └─ id: 3, batch_detail_id: 1, pack_number: 3, qty_in_pack: 2, grn_number: "MGN-19-43-1-3", status: "verified"

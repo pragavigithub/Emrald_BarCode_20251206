@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between mb-4">
+        <h2><i class="fas fa-boxes"></i> Multiple GRN Creation</h2>
+        <a href="{{ url_for('multi_grn.create_step1_customer') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create GRN
+        </a>
+<!-- {% if current_user.has_permission('grpo') %}-->
+<!--                    <a  href="{{ url_for('grpo') }}" class="btn btn-primary">-->
+<!--                        <i class="fas fa-plus"></i> GRN-->
+<!--                    </a>-->
+<!--                {% endif %}-->
+<!--    </div>-->
+
+
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <form id="filterForm" method="GET" action="{{ url_for('multi_grn.index') }}">
+                <input type="hidden" name="per_page" value="{{ per_page }}">
+                
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <label for="from_date" class="form-label form-label-sm">From Date</label>
+                        <input type="date" id="from_date" name="from_date" class="form-control form-control-sm" 
+                               value="{{ from_date or '' }}" onchange="this.form.submit()">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="to_date" class="form-label form-label-sm">To Date</label>
+                        <input type="date" id="to_date" name="to_date" class="form-control form-control-sm" 
+                               value="{{ to_date or '' }}" onchange="this.form.submit()">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="searchInput" class="form-label form-label-sm">Search</label>
+                        <input type="text" id="searchInput" name="search" class="form-control form-control-sm" 
+                               placeholder="Search by Batch ID, Customer..." value="{{ search_term or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label form-label-sm">Status</label>
+                        <select id="statusFilter" name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Statuses</option>
+                            <option value="draft" {{ 'selected' if status_filter == 'draft' else '' }}>Draft</option>
+                            <option value="submitted" {{ 'selected' if status_filter == 'submitted' else '' }}>Submitted</option>
+                            <option value="qc_approved" {{ 'selected' if status_filter == 'qc_approved' else '' }}>QC Approved</option>
+                            <option value="rejected" {{ 'selected' if status_filter == 'rejected' else '' }}>Rejected</option>
+                            <option value="completed" {{ 'selected' if status_filter == 'completed' else '' }}>Completed</option>
+                            <option value="failed" {{ 'selected' if status_filter == 'failed' else '' }}>Failed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        {% if search_term or from_date or to_date or status_filter %}
+                        <a href="{{ url_for('multi_grn.index', per_page=per_page) }}" 
+                           class="btn btn-outline-secondary btn-sm w-100">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if batches %}
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">GRN Batches</h5>
+                <div class="d-flex align-items-center">
+                    <label for="rowsPerPage" class="form-label mb-0 me-2">Rows per page:</label>
+                    <select id="rowsPerPage" class="form-select form-select-sm" style="width: auto;"
+                            onchange="changeRowsPerPage(this.value)">
+                        <option value="5" {{ 'selected' if per_page == 5 else '' }}>5</option>
+                        <option value="10" {{ 'selected' if per_page == 10 else '' }}>10</option>
+                        <option value="25" {{ 'selected' if per_page == 25 else '' }}>25</option>
+                        <option value="50" {{ 'selected' if per_page == 50 else '' }}>50</option>
+                        <option value="100" {{ 'selected' if per_page == 100 else '' }}>100</option>
+                    </select>
+                </div>
+            </div>
+            {% if pagination %}
+            <small class="text-muted">
+                Showing {{ ((pagination.page - 1) * pagination.per_page + 1) }} to
+                {{ ((pagination.page - 1) * pagination.per_page + batches|length) }}
+                of {{ pagination.total }} items
+            </small>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Batch ID</th>
+                        <th>Customer</th>
+                        <th>Total POs</th>
+                        <th>GRNs Created</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in batches %}
+                    <tr>
+                        <td>#{{ batch.id }}</td>
+                        <td>{{ batch.customer_name }}</td>
+                        <td>{{ batch.total_pos }}</td>
+                        <td>{{ batch.total_grns_created }}</td>
+                        <td>
+                            {% if batch.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif batch.status == 'qc_approved' %}
+                                <span class="badge bg-success">QC Approved</span>
+                            {% elif batch.status == 'submitted' %}
+                                <span class="badge bg-warning">Submitted</span>
+                            {% elif batch.status == 'rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% elif batch.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                            {% elif batch.status == 'draft' %}
+                                <span class="badge bg-secondary">Draft</span>
+                            {% else %}
+                                <span class="badge bg-info">{{ batch.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="{{ url_for('multi_grn.view_batch', batch_id=batch.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            {% if batch.status == 'draft' %}
+                            <a href="{{ url_for('multi_grn.edit_batch', batch_id=batch.id) }}" class="btn btn-sm btn-outline-warning ms-1">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <button type="button" class="btn btn-sm btn-success ms-1" 
+                                    onclick="submitForQC({{ batch.id }}, '{{ batch.batch_number }}')">
+                                <i class="fas fa-paper-plane"></i> Submit for QC
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-1" 
+                                    onclick="confirmDelete({{ batch.id }}, '{{ batch.batch_number }}', '{{ batch.customer_name }}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                            {% elif batch.status == 'submitted' %}
+                            <button type="button" class="btn btn-sm btn-success ms-1" 
+                                    onclick="showApproveModal({{ batch.id }}, '{{ batch.batch_number }}')">
+                                <i class="fas fa-check"></i> Approve
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger ms-1" 
+                                    onclick="showRejectModal({{ batch.id }}, '{{ batch.batch_number }}')">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if pagination and pagination.pages > 1 %}
+            <nav aria-label="Multi GRN pagination" class="mt-3">
+                <ul class="pagination pagination-sm justify-content-center">
+                    {% if pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('multi_grn.index', page=pagination.prev_num, search=search_term, per_page=per_page, from_date=from_date, to_date=to_date, status=status_filter) }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in pagination.iter_pages() %}
+                    {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('multi_grn.index', page=page_num, search=search_term, per_page=per_page, from_date=from_date, to_date=to_date, status=status_filter) }}">{{
+                            page_num }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('multi_grn.index', page=pagination.next_num, search=search_term, per_page=per_page, from_date=from_date, to_date=to_date, status=status_filter) }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        {% if search_term or from_date or to_date or status_filter %}
+        <i class="fas fa-search"></i> No batches match your filters.
+        <a href="{{ url_for('multi_grn.index', per_page=per_page) }}" class="alert-link">Clear filters</a>
+        {% else %}
+        <i class="fas fa-info-circle"></i> No GRN batches found. Click "Create New Batch" to get started.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Form (hidden) -->
+<form id="deleteForm" method="POST" style="display: none;">
+</form>
+
+<!-- QC Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-check-circle"></i> Approve GRN Batch</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to approve batch <strong id="approveBatchNumber"></strong>?</p>
+                <p class="text-muted small">This will post the GRN to SAP B1.</p>
+                <div class="mb-3">
+                    <label for="approveNotes" class="form-label">QC Notes (Optional)</label>
+                    <textarea class="form-control" id="approveNotes" rows="3" placeholder="Enter any quality control notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="approveGRN()">
+                    <i class="fas fa-check"></i> Approve & Post to SAP
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QC Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-times-circle"></i> Reject GRN Batch</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to reject batch <strong id="rejectBatchNumber"></strong>?</p>
+                <div class="mb-3">
+                    <label for="rejectNotes" class="form-label">Rejection Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="rejectNotes" rows="3" placeholder="Enter reason for rejection..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="rejectGRN()">
+                    <i class="fas fa-times"></i> Reject Batch
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentBatchId = null;
+
+function changeRowsPerPage(perPage) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('per_page', perPage);
+    urlParams.delete('page');
+    window.location.href = '{{ url_for("multi_grn.index") }}?' + urlParams.toString();
+}
+
+document.getElementById('searchInput').addEventListener('input', function () {
+    const form = document.getElementById('filterForm');
+    clearTimeout(window._multiGrnSearchTimeout);
+    window._multiGrnSearchTimeout = setTimeout(() => {
+        form.submit();
+    }, 500);
+});
+
+function confirmDelete(batchId, batchNumber, customerName) {
+    if (confirm(`Are you sure you want to delete draft batch ${batchNumber} for ${customerName}?\n\nThis will permanently delete the batch and all related data.`)) {
+        const form = document.getElementById('deleteForm');
+        form.action = '{{ url_for("multi_grn.index") }}'.replace('/multi-grn/', '/multi-grn/delete/') + batchId;
+        form.submit();
+    }
+}
+
+function submitForQC(batchId, batchNumber) {
+    if (confirm(`Submit batch ${batchNumber || '#' + batchId} for QC approval?`)) {
+        fetch(`/multi-grn/batch/${batchId}/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Batch submitted for QC approval successfully!');
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to submit batch'));
+            }
+        })
+        .catch(error => {
+            alert('Network error: ' + error.message);
+        });
+    }
+}
+
+function showApproveModal(batchId, batchNumber) {
+    currentBatchId = batchId;
+    document.getElementById('approveBatchNumber').textContent = batchNumber || '#' + batchId;
+    document.getElementById('approveNotes').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('approveModal'));
+    modal.show();
+}
+
+function showRejectModal(batchId, batchNumber) {
+    currentBatchId = batchId;
+    document.getElementById('rejectBatchNumber').textContent = batchNumber || '#' + batchId;
+    document.getElementById('rejectNotes').value = '';
+    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+
+function approveGRN() {
+    const notes = document.getElementById('approveNotes').value;
+    
+    fetch(`/multi-grn/batch/${currentBatchId}/approve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            qc_notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Batch approved and posted to SAP successfully!');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to approve batch'));
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error.message);
+    });
+}
+
+function rejectGRN() {
+    const notes = document.getElementById('rejectNotes').value.trim();
+    
+    if (!notes) {
+        alert('Please enter a rejection reason');
+        return;
+    }
+    
+    fetch(`/multi-grn/batch/${currentBatchId}/reject`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            qc_notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Batch rejected successfully!');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to reject batch'));
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error.message);
+    });
+}
+</script>
+{% endblock %}

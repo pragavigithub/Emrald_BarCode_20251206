@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QR Label Reader</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- HTML5 QR Code Scanner -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body { background-color: #f8f9fa; }
+    #qr-reader {
+      width: 100%;
+      border: 2px solid #007bff;
+      border-radius: 10px;
+    }
+    #qrScanError { color: red; display: none; }
+  </style>
+</head>
+<body class="p-4">
+
+  <div class="container">
+    <h3 class="mb-4 text-center">QR Label Reader</h3>
+
+    <div class="text-center">
+      <button class="btn btn-primary" onclick="showQRScannerForTransfer()">Scan QR Code</button>
+    </div>
+
+    <hr>
+
+    <h5>Decoded QR JSON Data:</h5>
+    <div class="row g-3 mt-2">
+      <div class="col-md-4">
+        <label class="form-label">ID</label>
+        <input type="text" id="qr_id" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">PO</label>
+        <input type="text" id="qr_po" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Item</label>
+        <input type="text" id="qr_item" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Batch</label>
+        <input type="text" id="qr_batch" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Quantity</label>
+        <input type="text" id="qr_qty" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Pack</label>
+        <input type="text" id="qr_pack" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">GRN Date</label>
+        <input type="text" id="qr_grn_date" class="form-control" readonly>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Expiry Date</label>
+        <input type="text" id="qr_exp_date" class="form-control" readonly>
+      </div>
+    </div>
+
+    <div id="qrScanError" class="mt-3"></div>
+  </div>
+
+  <!-- QR Scanner Modal -->
+  <div class="modal fade" id="qrScannerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Scan QR Label</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopQRScanner()"></button>
+        </div>
+        <div class="modal-body text-center">
+          <div id="qr-reader" style="width: 100%; height: 300px;"></div>
+          <p class="text-muted mt-3" id="scanMessage">Point your camera at the QR label</p>
+          <div id="qrScanError" class="mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" onclick="stopQRScanner()">Stop Scanner</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    let html5QrCode;
+
+    function showQRScannerForTransfer() {
+      const modal = new bootstrap.Modal(document.getElementById('qrScannerModal'));
+      modal.show();
+
+      setTimeout(() => {
+        startQRScannerForTransfer();
+      }, 400);
+    }
+
+    function startQRScannerForTransfer() {
+      const qrScanError = document.getElementById('qrScanError');
+      const scanMessage = document.getElementById('scanMessage');
+
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader", { verbose: true });
+      }
+
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+          // Find the back camera (environment)
+          let camera = cameras.find(cam => cam.label.toLowerCase().includes('back') || cam.label.toLowerCase().includes('rear'));
+          if (!camera) camera = cameras[0]; // fallback to first camera
+
+          console.log("📷 Using camera:", camera.label);
+
+          html5QrCode.start(
+            camera.id,
+            config,
+            (decodedText, decodedResult) => {
+              console.log("✅ QR Code scanned:", decodedText);
+              scanMessage.textContent = "QR Code scanned successfully!";
+              processScannedQRLabel(decodedText);
+
+              stopQRScanner();
+              const modal = bootstrap.Modal.getInstance(document.getElementById('qrScannerModal'));
+              modal.hide();
+            },
+            (errorMessage) => {
+              // ignore scanning errors
+            }
+          ).catch(err => {
+            console.error("❌ Error starting scanner:", err);
+            qrScanError.textContent = "Failed to start camera: " + err;
+            qrScanError.style.display = 'block';
+          });
+        } else {
+          qrScanError.textContent = "No cameras found on this device.";
+          qrScanError.style.display = 'block';
+        }
+      }).catch(err => {
+        qrScanError.textContent = "Camera access error: " + err;
+        qrScanError.style.display = 'block';
+      });
+    }
+
+    function stopQRScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          console.log("🛑 Scanner stopped successfully");
+        }).catch(err => {
+          console.error("Error stopping scanner:", err);
+        });
+      }
+    }
+
+    function processScannedQRLabel(decodedText) {
+      try {
+        const data = JSON.parse(decodedText);
+        document.getElementById('qr_id').value = data.id || '';
+        document.getElementById('qr_po').value = data.po || '';
+        document.getElementById('qr_item').value = data.item || '';
+        document.getElementById('qr_batch').value = data.batch || '';
+        document.getElementById('qr_qty').value = data.qty || '';
+        document.getElementById('qr_pack').value = data.pack || '';
+        document.getElementById('qr_grn_date').value = data.grn_date || '';
+        document.getElementById('qr_exp_date').value = data.exp_date || '';
+      } catch (e) {
+        alert("Invalid QR code data format. Expected JSON.");
+        console.error("QR Parse Error:", e);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('qc_dashboard') }}">QC Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('multi_grn.index') }}">Multiple GRN</a></li>
+            <li class="breadcrumb-item active">QC Review - Batch #{{ batch.batch_number }}</li>
+        </ol>
+    </nav>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="fas fa-qrcode"></i> QC Review - Batch #{{ batch.batch_number }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><strong>Customer:</strong> {{ batch.customer_name }} ({{ batch.customer_code }})</p>
+                    <p><strong>Created By:</strong> {{ batch.user.username }}</p>
+                    <p><strong>Created At:</strong>{% if batch.created_at and batch.created_at.strftime %} {{ batch.created_at.strftime('%Y-%m-%d %H:%M') }} {% else %} {{ batch.created_at }} {% endif %}</p>
+
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Status:</strong> 
+                        <span class="badge {% if batch.status == 'submitted' %}bg-warning{% elif batch.status == 'qc_approved' %}bg-success{% else %}bg-info{% endif %}">
+                            {{ batch.status.upper() }}
+                        </span>
+                    </p>
+                    <p><strong>Total POs:</strong> {{ batch.total_pos }}</p>
+                    <p><strong>Total Line Items:</strong> {{ total_line_items }}</p>
+                </div>
+            </div>
+
+            <div class="card mb-4 {% if all_verified %}border-success{% else %}border-warning{% endif %}">
+                <div class="card-header {% if all_verified %}bg-success{% else %}bg-warning{% endif %} text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clipboard-check"></i> Verification Progress
+                        <span class="float-end" id="progress-percentage">
+                            {{ verified_line_items }} / {{ total_line_items }} items verified
+                        </span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar {% if all_verified %}bg-success{% else %}bg-warning{% endif %}" 
+                             role="progressbar" 
+                             id="verification-progress-bar"
+                             style="width: {{ (verified_line_items / total_line_items * 100) if total_line_items > 0 else 0 }}%"
+                             aria-valuenow="{{ verified_line_items }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="{{ total_line_items }}">
+                            <strong>{{ "%.1f"|format((verified_line_items / total_line_items * 100) if total_line_items > 0 else 0) }}%</strong>
+                        </div>
+                    </div>
+                    {% if all_verified %}
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="fas fa-check-circle"></i> All items have been verified! You can now approve and post this batch to SAP B1.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="fas fa-info-circle"></i> Scan each QR code label to verify the items before approval.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-barcode"></i> Line-by-Line QR Code Scanner</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="qr-scanner-input" class="form-label">Scan QR Code (Use barcode scanner device)</label>
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       id="qr-scanner-input" 
+                                       placeholder="Focus here and scan QR code with barcode scanner..."
+                                       autofocus>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Scan each QR label - the system will verify quantity matches before marking as verified
+                                </small>
+                            </div>
+                        </div>
+<!--                        <div class="col-md-3">-->
+<!--                            <div class="form-group">-->
+<!--                                <label class="form-label">&nbsp;</label>-->
+<!--                                <button type="button" class="btn btn-primary btn-lg w-100" onclick="manualScan()">-->
+<!--                                    <i class="fas fa-check-circle"></i> Scan & Verify-->
+<!--                                </button>-->
+<!--                            </div>-->
+<!--                        </div>-->
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="button" class="btn btn-success btn-lg w-100" onclick="showCameraScanner()">
+                                    <i class="fas fa-camera"></i> Camera Scanner
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="scan-result" class="mt-3"></div>
+                </div>
+            </div>
+
+            <h5>Purchase Orders & Line Items</h5>
+            {% for po_link in batch.po_links %}
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-invoice"></i> PO #{{ po_link.po_doc_num }} - {{ po_link.po_card_name }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% for line in po_link.line_selections %}
+                    <div class="card mb-2">
+                        <div class="card-header">
+                            <strong>{{ line.item_code }}</strong> - {{ line.item_description }}
+                            <span class="badge bg-info float-end">Qty: {{ line.selected_quantity }}</span>
+                        </div>
+                        <div class="card-body">
+                            {% if line.batch_details|length > 0 %}
+                            <h6>Batch Details:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>GRN Number</th>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Expiry Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for detail in line.batch_details %}
+                                        <tr class="detail-row" data-grn="{{ detail.grn_number }}" data-status="{{ detail.status }}">
+                                            <td><code>{{ detail.grn_number }}</code></td>
+                                            <td>{{ detail.batch_number }}</td>
+                                            <td>{{ detail.quantity }}</td>
+                                            <td>{% if detail.expiry_date and detail.expiry_date.strftime %} {{ detail.expiry_date.strftime('%Y-%m-%d') }} {% else %} {{ detail.expiry_date or 'N/A' }} {% endif %}</td>
+                                            <td>
+                                                <span class="status-badge badge {% if detail.status == 'verified' %}bg-success{% else %}bg-warning{% endif %}">
+                                                    {% if detail.status == 'verified' %}
+                                                    <i class="fas fa-check-circle"></i> Verified
+                                                    {% else %}
+                                                    <i class="fas fa-clock"></i> Pending
+                                                    {% endif %}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+                            
+                            {% if line.serial_details|length > 0 %}
+                            <h6>Serial Details:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>GRN Number</th>
+                                            <th>Serial Number</th>
+                                            <th>Expiry Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for detail in line.serial_details %}
+                                        <tr class="detail-row" data-grn="{{ detail.grn_number }}" data-status="{{ detail.status }}">
+                                            <td><code>{{ detail.grn_number }}</code></td>
+                                            <td>{{ detail.serial_number }}</td>
+                                            <td>{{ detail.expiry_date.strftime('%Y-%m-%d') if detail.expiry_date else 'N/A' }}</td>
+                                            <td>
+                                                <span class="status-badge badge {% if detail.status == 'verified' %}bg-success{% else %}bg-warning{% endif %}">
+                                                    {% if detail.status == 'verified' %}
+                                                    <i class="fas fa-check-circle"></i> Verified
+                                                    {% else %}
+                                                    <i class="fas fa-clock"></i> Pending
+                                                    {% endif %}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="card mt-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-clipboard-check"></i> QC Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="qc-notes" class="form-label">QC Notes</label>
+                                <textarea class="form-control" id="qc-notes" rows="3" placeholder="Add any notes or observations..."></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid gap-2">
+                                <button type="button" 
+                                        class="btn btn-success btn-lg" 
+                                        id="approve-btn"
+                                        onclick="approveBatch()"
+                                        {% if not all_verified %}disabled{% endif %}>
+                                    <i class="fas fa-check-circle"></i> Approve & Post to SAP B1
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="rejectBatch()">
+                                    <i class="fas fa-times-circle"></i> Reject Batch
+                                </button>
+                                <a href="{{ url_for('qc_dashboard') }}" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Scanner Modal -->
+<div class="modal fade" id="cameraScannerModal" tabindex="-1" aria-labelledby="cameraScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="cameraScannerModalLabel">
+                    <i class="fas fa-camera"></i> Camera QR Code Scanner
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Point your camera at the QR code label. The scanner will automatically detect and verify it.
+                </div>
+                <div id="qr-reader" style="width: 100%;"></div>
+                <div id="camera-scan-result" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopCameraScanner()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Html5Qrcode Library -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+const batchId = {{ batch.id }};
+let scanTimeout = null;
+let html5QrCode = null;
+
+document.getElementById('qr-scanner-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        const qrData = this.value.trim();
+        if (qrData) {
+            processScan(qrData);
+            this.value = '';
+        }
+    }
+});
+
+document.getElementById('qr-scanner-input').addEventListener('input', function() {
+    clearTimeout(scanTimeout);
+    scanTimeout = setTimeout(() => {
+        const qrData = this.value.trim();
+        if (qrData && qrData.includes('{')) {
+            processScan(qrData);
+            this.value = '';
+        }
+    }, 300);
+});
+
+function manualScan() {
+    const qrData = document.getElementById('qr-scanner-input').value.trim();
+    if (!qrData) {
+        showScanResult('error', 'Please enter or scan a QR code');
+        return;
+    }
+    processScan(qrData);
+    document.getElementById('qr-scanner-input').value = '';
+}
+
+function processScan(qrData) {
+    showScanResult('info', '<i class="fas fa-spinner fa-spin"></i> Processing scan...');
+    
+    fetch('/multi-grn/api/scan-qr-code', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            qr_data: qrData,
+            batch_id: batchId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.already_verified) {
+                showScanResult('warning', '<i class="fas fa-info-circle"></i> ' + data.message);
+            } else {
+                showScanResult('success', '<i class="fas fa-check-circle"></i> ' + data.message);
+                
+                const rows = document.querySelectorAll(`tr.detail-row[data-grn="${data.item_info.grn_number}"]`);
+                rows.forEach(row => {
+                    row.dataset.status = 'verified';
+                    const badge = row.querySelector('.status-badge');
+                    badge.className = 'status-badge badge bg-success';
+                    badge.innerHTML = '<i class="fas fa-check-circle"></i> Verified';
+                });
+            }
+            
+            updateVerificationStatus();
+        } else {
+            showScanResult('error', '<i class="fas fa-exclamation-circle"></i> ' + data.error);
+        }
+    })
+    .catch(error => {
+        showScanResult('error', '<i class="fas fa-exclamation-circle"></i> Network error: ' + error.message);
+    });
+}
+
+function showScanResult(type, message) {
+    const resultDiv = document.getElementById('scan-result');
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    resultDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+    
+    if (type === 'success' || type === 'warning') {
+        setTimeout(() => {
+            resultDiv.innerHTML = '';
+            document.getElementById('qr-scanner-input').focus();
+        }, 3000);
+    }
+}
+
+function updateVerificationStatus() {
+    fetch(`/multi-grn/api/batch/${batchId}/verification-status`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const progressBar = document.getElementById('verification-progress-bar');
+            const progressText = document.getElementById('progress-percentage');
+            const approveBtn = document.getElementById('approve-btn');
+            
+            progressBar.style.width = data.percentage + '%';
+            progressBar.textContent = data.percentage.toFixed(1) + '%';
+            progressBar.setAttribute('aria-valuenow', data.verified_items);
+            
+            progressText.textContent = `${data.verified_items} / ${data.total_items} items verified`;
+            
+            if (data.all_verified) {
+                progressBar.classList.remove('bg-warning');
+                progressBar.classList.add('bg-success');
+                approveBtn.disabled = false;
+                
+                const alertHtml = `
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="fas fa-check-circle"></i> All items have been verified! You can now approve and post this batch to SAP B1.
+                    </div>
+                `;
+                document.querySelector('.card.mb-4.border-success .card-body').innerHTML = 
+                    document.querySelector('.progress').parentElement.innerHTML.split('</div>')[0] + '</div>' + alertHtml;
+            }
+        }
+    })
+    .catch(error => console.error('Error updating verification status:', error));
+}
+
+function approveBatch() {
+    const qcNotes = document.getElementById('qc-notes').value;
+    
+    if (!confirm('Are you sure you want to approve this batch and post it to SAP B1?')) {
+        return;
+    }
+    
+    const approveBtn = document.getElementById('approve-btn');
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting to SAP B1...';
+    
+    fetch(`/multi-grn/batch/${batchId}/approve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            qc_notes: qcNotes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Success: ' + data.message);
+            window.location.href = '{{ url_for("qc_dashboard") }}';
+        } else {
+            alert('Error: ' + data.error);
+            approveBtn.disabled = false;
+            approveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve & Post to SAP B1';
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error.message);
+        approveBtn.disabled = false;
+        approveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Approve & Post to SAP B1';
+    });
+}
+
+function rejectBatch() {
+    const qcNotes = document.getElementById('qc-notes').value;
+    
+    if (!qcNotes.trim()) {
+        alert('Please provide a reason for rejection in the QC Notes field');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to reject this batch?')) {
+        return;
+    }
+    
+    fetch(`/multi-grn/batch/${batchId}/reject`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            qc_notes: qcNotes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Batch rejected');
+            window.location.href = '{{ url_for("qc_dashboard") }}';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Network error: ' + error.message);
+    });
+}
+
+// Camera Scanner Functions
+function showCameraScanner() {
+    const modal = new bootstrap.Modal(document.getElementById('cameraScannerModal'));
+    modal.show();
+    
+    // Small delay to ensure modal is fully shown before starting camera
+    setTimeout(() => {
+        startCameraScanner();
+    }, 500);
+}
+
+function startCameraScanner() {
+    const scanResultDiv = document.getElementById('camera-scan-result');
+    scanResultDiv.innerHTML = '';
+    
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+    
+    const config = { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+    };
+    
+    html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText, decodedResult) => {
+            console.log(`QR Code scanned: ${decodedText}`);
+            
+            // Process the scanned QR code
+            processScan(decodedText);
+            
+            // Stop scanner and close modal
+            stopCameraScanner();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('cameraScannerModal'));
+            if (modal) {
+                modal.hide();
+            }
+        },
+        (errorMessage) => {
+            // Scanning errors are normal during the scan process, so we ignore them
+        }
+    ).catch(err => {
+        console.error('Error starting camera scanner:', err);
+        scanResultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> Failed to start camera. 
+                Please check camera permissions and ensure you're using HTTPS.
+                <br><small>Error: ${err}</small>
+            </div>
+        `;
+    });
+}
+
+function stopCameraScanner() {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop()
+            .then(() => {
+                console.log('Camera scanner stopped');
+            })
+            .catch(err => {
+                console.error('Error stopping camera scanner:', err);
+            });
+    }
+}
+
+// Cleanup when modal is hidden
+document.getElementById('cameraScannerModal').addEventListener('hidden.bs.modal', function () {
+    stopCameraScanner();
+});
+
+document.getElementById('qr-scanner-input').focus();
+</script>
+{% endblock %}

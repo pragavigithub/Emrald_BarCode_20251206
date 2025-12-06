@@ -1,0 +1,725 @@
+{
+    "odata.metadata": "https://apiemeraldsap.link:50000/b1s/v1/$metadata#PurchaseOrders",
+    "value": [
+        {
+            "CardCode": "V002345",
+            "CardName": "CRIAMOS ENGINEERING PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001476",
+            "CardName": "PARASAKTHI CEMENT"
+        },
+        {
+            "CardCode": "V002401",
+            "CardName": "ABS INSTRUMENTS PVT. LTD."
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V002148",
+            "CardName": "KOHITECH TOOLING LLP"
+        },
+        {
+            "CardCode": "V002162",
+            "CardName": "SEVENXT ELECTRONICS  PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001384",
+            "CardName": "METRO COMPUTERS"
+        },
+        {
+            "CardCode": "V000735",
+            "CardName": "MAHADEV ELECTRIC COMPANY"
+        },
+        {
+            "CardCode": "V002205",
+            "CardName": "DEEPAK ELECTRIC CORPORATION"
+        },
+        {
+            "CardCode": "V000508",
+            "CardName": "TNT PAINTS"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V002144",
+            "CardName": "AZAR FIRE HYDRANT & PEB STRUCTURE WORK"
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V002310",
+            "CardName": "SHREE PRABHU ELECTRICALS"
+        },
+        {
+            "CardCode": "V001364",
+            "CardName": "BARAKKATH TRADERS"
+        },
+        {
+            "CardCode": "V001804",
+            "CardName": "TUBE INVESMENT OF INDIA LTD."
+        },
+        {
+            "CardCode": "V000731",
+            "CardName": "SRI MARUTHI ENTERPRISES"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001504",
+            "CardName": "SRI SABARI AGENCIES"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001333",
+            "CardName": "DYNAMIC TRADING CO."
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V002378",
+            "CardName": "GRAPHIC ENGINEERING WORKS"
+        },
+        {
+            "CardCode": "V002205",
+            "CardName": "DEEPAK ELECTRIC CORPORATION"
+        },
+        {
+            "CardCode": "V000208",
+            "CardName": "INTECH SYSTEMS CHENNAI PVT. LTD."
+        },
+        {
+            "CardCode": "V001296",
+            "CardName": "PROTOCOL LABELS INDIA PVT. LTD."
+        },
+        {
+            "CardCode": "V001345",
+            "CardName": "JEEVABHOY & SONS"
+        },
+        {
+            "CardCode": "V002310",
+            "CardName": "SHREE PRABHU ELECTRICALS"
+        },
+        {
+            "CardCode": "V002323",
+            "CardName": "OMM INSTALLERS SERVICES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002323",
+            "CardName": "OMM INSTALLERS SERVICES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002359",
+            "CardName": "N. BUPALAN ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V002374",
+            "CardName": "GOMATHI CONSTRUCTION"
+        },
+        {
+            "CardCode": "V002374",
+            "CardName": "GOMATHI CONSTRUCTION"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V002310",
+            "CardName": "SHREE PRABHU ELECTRICALS"
+        },
+        {
+            "CardCode": "V002374",
+            "CardName": "GOMATHI CONSTRUCTION"
+        },
+        {
+            "CardCode": "V000595",
+            "CardName": "HYDRAULICS AND PNEUMATICS"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V000391",
+            "CardName": "SAKTHI AUTO GAS"
+        },
+        {
+            "CardCode": "V002394",
+            "CardName": "CONCRETE OEM PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V001040",
+            "CardName": "A. MOHAMED & CO."
+        },
+        {
+            "CardCode": "V001404",
+            "CardName": "HYDRAULICS & PNEUMATICS CO."
+        },
+        {
+            "CardCode": "V000616",
+            "CardName": "LBV AUTOMATION"
+        },
+        {
+            "CardCode": "V001473",
+            "CardName": "HUSSAIN ENTERPRISE"
+        },
+        {
+            "CardCode": "V001122",
+            "CardName": "INEX ENGINEERING SOLUTIONS"
+        },
+        {
+            "CardCode": "V001106",
+            "CardName": "AVON HYDRAULICS & ENG. PVT. LTD."
+        },
+        {
+            "CardCode": "V002343",
+            "CardName": "SPIN AQM TECHNOLOGIES INDIA (P) LTD."
+        },
+        {
+            "CardCode": "V000532",
+            "CardName": "VANJAX SALES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002151",
+            "CardName": "NEW ERA ENGINEERING"
+        },
+        {
+            "CardCode": "V002374",
+            "CardName": "GOMATHI CONSTRUCTION"
+        },
+        {
+            "CardCode": "V002374",
+            "CardName": "GOMATHI CONSTRUCTION"
+        },
+        {
+            "CardCode": "V002385",
+            "CardName": "SAI BABA BUSINESS MACHINES PRIVATE LTD."
+        },
+        {
+            "CardCode": "V001466",
+            "CardName": "SACHIN HITECH INDUSTRIES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V000391",
+            "CardName": "SAKTHI AUTO GAS"
+        },
+        {
+            "CardCode": "V002233",
+            "CardName": "TECHNO ENGINEERING"
+        },
+        {
+            "CardCode": "V000673",
+            "CardName": "ALPHA MATERIAL TESTING LABAROTORY"
+        },
+        {
+            "CardCode": "V001582",
+            "CardName": "WARPP ENGINEERS PVT. LTD."
+        },
+        {
+            "CardCode": "V001404",
+            "CardName": "HYDRAULICS & PNEUMATICS CO."
+        },
+        {
+            "CardCode": "V002258",
+            "CardName": "SICAGEN INDIA LIMITED"
+        },
+        {
+            "CardCode": "V002369",
+            "CardName": "JANA INDUSTRIAL HARDWARE"
+        },
+        {
+            "CardCode": "V002258",
+            "CardName": "SICAGEN INDIA LIMITED"
+        },
+        {
+            "CardCode": "V002258",
+            "CardName": "SICAGEN INDIA LIMITED"
+        },
+        {
+            "CardCode": "V002369",
+            "CardName": "JANA INDUSTRIAL HARDWARE"
+        },
+        {
+            "CardCode": "V001566",
+            "CardName": "DS MOULDS AND ENGINEERING WORKS"
+        },
+        {
+            "CardCode": "V002370",
+            "CardName": "MODERN ELECTRONICS & FURNITURE"
+        },
+        {
+            "CardCode": "V002193",
+            "CardName": "VELOCES ENGG AND SERVICES"
+        },
+        {
+            "CardCode": "V002359",
+            "CardName": "N. BUPALAN ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V001384",
+            "CardName": "METRO COMPUTERS"
+        },
+        {
+            "CardCode": "V002205",
+            "CardName": "DEEPAK ELECTRIC CORPORATION"
+        },
+        {
+            "CardCode": "V002376",
+            "CardName": "BIRLANU LIMITED"
+        },
+        {
+            "CardCode": "V000741",
+            "CardName": "V S VENTS"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V000508",
+            "CardName": "TNT PAINTS"
+        },
+        {
+            "CardCode": "V000532",
+            "CardName": "VANJAX SALES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V002394",
+            "CardName": "CONCRETE OEM PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002310",
+            "CardName": "SHREE PRABHU ELECTRICALS"
+        },
+        {
+            "CardCode": "V001976",
+            "CardName": "STEEL-O-FAB ENGINEERS"
+        },
+        {
+            "CardCode": "V001618",
+            "CardName": "LAXMI MOULDS INDUSTRIES PVT. LTD."
+        },
+        {
+            "CardCode": "V000787",
+            "CardName": "R.K.CRANES"
+        },
+        {
+            "CardCode": "V002242",
+            "CardName": "MARVEL MACHINES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002355",
+            "CardName": "FREEZE AIR REFRIGERATION"
+        },
+        {
+            "CardCode": "V000513",
+            "CardName": "TULSIRAM HANUMAN BAGAS GILADA - TN"
+        },
+        {
+            "CardCode": "V000237",
+            "CardName": "KRISHNAA ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V002286",
+            "CardName": "G.K.N ENTERPRISES"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001847",
+            "CardName": "AJS HR SERVICES"
+        },
+        {
+            "CardCode": "V000237",
+            "CardName": "KRISHNAA ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V002286",
+            "CardName": "G.K.N ENTERPRISES"
+        },
+        {
+            "CardCode": "V001847",
+            "CardName": "AJS HR SERVICES"
+        },
+        {
+            "CardCode": "V002298",
+            "CardName": "SRI VENKATESWARA ENGINEERING"
+        },
+        {
+            "CardCode": "V002394",
+            "CardName": "CONCRETE OEM PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V002070",
+            "CardName": "SPL INFRASTRUCTURE PVT. LTD."
+        },
+        {
+            "CardCode": "V000237",
+            "CardName": "KRISHNAA ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V000787",
+            "CardName": "R.K.CRANES"
+        },
+        {
+            "CardCode": "V000435",
+            "CardName": "SREE GANAPATHI INDUSTRIES"
+        },
+        {
+            "CardCode": "V000822",
+            "CardName": "EMERGING ALLIANCE"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V000243",
+            "CardName": "LAKSHMI ENGINEERING"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V002242",
+            "CardName": "MARVEL MACHINES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V002284",
+            "CardName": "JOINERS MOULDS - NEW"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V000527",
+            "CardName": "V.G.S.M ENTERPRISES"
+        },
+        {
+            "CardCode": "V001099",
+            "CardName": "MOMSON INTELLISYS PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001395",
+            "CardName": "GSP ELECTRICAL WORKS"
+        },
+        {
+            "CardCode": "V000132",
+            "CardName": "TECHNO SPAN WEIGHING SYSTEM"
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V002286",
+            "CardName": "G.K.N ENTERPRISES"
+        },
+        {
+            "CardCode": "V002286",
+            "CardName": "G.K.N ENTERPRISES"
+        },
+        {
+            "CardCode": "V002375",
+            "CardName": "PS ENTERPRISES"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V001665",
+            "CardName": "DHANSHIKA ENTERPRISES"
+        },
+        {
+            "CardCode": "V000237",
+            "CardName": "KRISHNAA ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V002231",
+            "CardName": "POWER HYDRAULICS & PNEUMATICS"
+        },
+        {
+            "CardCode": "V001395",
+            "CardName": "GSP ELECTRICAL WORKS"
+        },
+        {
+            "CardCode": "V000237",
+            "CardName": "KRISHNAA ENGINEERING FABRICATORS"
+        },
+        {
+            "CardCode": "V001395",
+            "CardName": "GSP ELECTRICAL WORKS"
+        },
+        {
+            "CardCode": "V001826",
+            "CardName": "PRV ENGINEERING WORKS"
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V002298",
+            "CardName": "SRI VENKATESWARA ENGINEERING"
+        },
+        {
+            "CardCode": "V001847",
+            "CardName": "AJS HR SERVICES"
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V002192",
+            "CardName": "BHARAJ MACHINERIES PVT. LTD."
+        },
+        {
+            "CardCode": "V001458",
+            "CardName": "KRISHNA ENTERPRISES"
+        },
+        {
+            "CardCode": "V002286",
+            "CardName": "G.K.N ENTERPRISES"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V002173",
+            "CardName": "INDIAN EXPELLER WORKS PVT. LTD."
+        },
+        {
+            "CardCode": "V001040",
+            "CardName": "A. MOHAMED & CO."
+        },
+        {
+            "CardCode": "V002353",
+            "CardName": "MACPOWER CNC MACHINES LIMITED"
+        },
+        {
+            "CardCode": "V001040",
+            "CardName": "A. MOHAMED & CO."
+        },
+        {
+            "CardCode": "V002376",
+            "CardName": "BIRLANU LIMITED"
+        },
+        {
+            "CardCode": "V000509",
+            "CardName": "TOSHNIWAL HYVAC PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V001917",
+            "CardName": "ABHI VAIRAVANS PLUMBING CO.,"
+        },
+        {
+            "CardCode": "V000435",
+            "CardName": "SREE GANAPATHI INDUSTRIES"
+        },
+        {
+            "CardCode": "V000458",
+            "CardName": "SRI HARI TECH"
+        },
+        {
+            "CardCode": "V001528",
+            "CardName": "SHREE MEYYAR HYDRAULICS"
+        },
+        {
+            "CardCode": "V001681",
+            "CardName": "CONWAY WATER PURIFIER PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V001976",
+            "CardName": "STEEL-O-FAB ENGINEERS"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V001887",
+            "CardName": "AVK ENTERPISES"
+        },
+        {
+            "CardCode": "V001530",
+            "CardName": "JAGAN MATHA TRADERS"
+        },
+        {
+            "CardCode": "V002404",
+            "CardName": "PAVALAM CONSTRUCTION CHEMICALS"
+        },
+        {
+            "CardCode": "V002369",
+            "CardName": "JANA INDUSTRIAL HARDWARE"
+        },
+        {
+            "CardCode": "V000822",
+            "CardName": "EMERGING ALLIANCE"
+        },
+        {
+            "CardCode": "V002205",
+            "CardName": "DEEPAK ELECTRIC CORPORATION"
+        },
+        {
+            "CardCode": "V000347",
+            "CardName": "QINGDAO HAOMAITONG MOLD CO. LTD."
+        },
+        {
+            "CardCode": "V001736",
+            "CardName": "SRI ANGALAMMAN CEMENT WORKS"
+        },
+        {
+            "CardCode": "V002323",
+            "CardName": "OMM INSTALLERS SERVICES PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V002310",
+            "CardName": "SHREE PRABHU ELECTRICALS"
+        },
+        {
+            "CardCode": "V002392",
+            "CardName": "ANAND STEEL ENTERPRISES"
+        },
+        {
+            "CardCode": "V002394",
+            "CardName": "CONCRETE OEM PRIVATE LIMITED"
+        },
+        {
+            "CardCode": "V000269",
+            "CardName": "MANMEET ENGINEERING WORKS"
+        }
+    ]
+}

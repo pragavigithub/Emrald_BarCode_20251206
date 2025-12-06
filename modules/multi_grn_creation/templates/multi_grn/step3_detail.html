@@ -1,0 +1,821 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('multi_grn.index') }}">Multiple GRN</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('multi_grn.create_step2_select_pos', batch_id=batch.id) }}">Step 2: POs</a></li>
+            <li class="breadcrumb-item active">Step 3: Item Details</li>
+        </ol>
+    </nav>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0"><i data-feather="package"></i> Step 3: Line Item Details</h4>
+                <small>Batch: {{ batch.batch_number }} | Customer: {{ batch.customer_name }}</small>
+            </div>
+            <div>
+                <span class="badge bg-light text-dark">{{ batch.po_links|length }} PO(s) Selected</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Instructions -->
+            <div class="alert alert-info">
+                <i data-feather="info"></i>
+                <strong>Instructions:</strong> For each line item, click "Add Item" to enter warehouse, bin location, batch/serial details, and generate QR labels. Item validation will be performed automatically.
+            </div>
+
+            <!-- PO and Line Items Table -->
+            {% for po_link in batch.po_links %}
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i data-feather="file-text"></i> PO #{{ po_link.po_doc_num }}
+                        <span class="badge bg-secondary ms-2">Doc Entry: {{ po_link.po_doc_entry }}</span>
+                        <span class="badge bg-info ms-2">{{ po_link.line_selections|length }} Line(s)</span>
+                    </h5>
+                    <small class="text-muted">Vendor: {{ po_link.po_card_name }} ({{ po_link.po_card_code }})</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 5%;">Line #</th>
+                                    <th style="width: 12%;">Item Code</th>
+                                    <th style="width: 20%;">Description</th>
+                                    <th style="width: 8%;">Ordered</th>
+                                    <th style="width: 8%;">Open</th>
+                                    <th style="width: 8%;">Receiving</th>
+                                    <th style="width: 10%;">Warehouse</th>
+                                    <th style="width: 12%;">Bin Location</th>
+                                    <th style="width: 7%;">Packs</th>
+                                    <th style="width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in po_link.line_selections %}
+                                <tr id="row_{{ line.id }}">
+                                    <td>
+                                        <span class="badge bg-secondary">{{ line.po_line_num }}</span>
+                                    </td>
+                                    <td><strong>{{ line.item_code }}</strong></td>
+                                    <td>{{ line.item_description }}</td>
+                                    <td>{{ line.ordered_quantity }}</td>
+                                    <td>{{ line.open_quantity }}</td>
+                                    <td>
+                                        <span id="qty_{{ line.id }}">{{ line.selected_quantity }}</span>
+                                    </td>
+                                    <td>
+                                        <span id="warehouse_{{ line.id }}">{{ line.warehouse_code or '-' }}</span>
+                                    </td>
+                                    <td>
+                                        <span id="bin_{{ line.id }}">{{ line.bin_location or '-' }}</span>
+                                    </td>
+                                    <td>
+                                        <span id="packs_{{ line.id }}">
+                                            {% if line.batch_details %}
+                                                {{ line.batch_details[0].no_of_packs if line.batch_details[0].no_of_packs else line.batch_details|length }}
+                                            {% elif line.serial_details %}
+                                                {{ line.serial_details[0].no_of_packs if line.serial_details[0].no_of_packs else line.serial_details|length }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-success"
+                                                    onclick='showAddItemModal({{ line.po_link_id }}, {{ line.id }}, {{ line.po_line_num }}, {{ po_link.po_doc_entry }}, {{ line.item_code|tojson }}, {{ line.item_description|tojson }}, {{ line.selected_quantity }}, {{ line.warehouse_code|tojson }})'>
+                                                <i data-feather="plus"></i> Add Item
+                                            </button>
+                                            {% if (line.batch_details|length > 0) or (line.serial_details|length > 0) %}
+                                            <button type="button" class="btn btn-sm btn-info" 
+                                                    data-line-id="{{ line.id }}"
+                                                    data-item-code="{{ line.item_code }}"
+                                                    data-item-description="{{ line.item_description }}"
+                                                    data-label-type="{% if line.serial_details|length > 0 %}serial{% else %}batch{% endif %}"
+                                                    onclick="showMultiGRNQRLabels(this)"
+                                                    title="Print QR Labels">
+                                                <i data-feather="printer"></i> Print {% if line.serial_details|length > 0 %}Serial{% else %}Batch{% endif %} Labels
+                                            </button>
+                                            {% endif %}
+                                            <button type="button" class="btn btn-sm btn-danger" 
+                                                    onclick="removeLine({{ batch.id }}, {{ line.id }}, '{{ line.item_code }}')"
+                                                    title="Remove Line Item">
+                                                <i data-feather="trash-2"></i> Remove
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not po_link.line_selections %}
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted">
+                                        <i data-feather="alert-circle"></i> No line items selected for this PO
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Navigation Buttons -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('multi_grn.create_step2_select_pos', batch_id=batch.id) }}" 
+                   class="btn btn-secondary">
+                    <i data-feather="arrow-left"></i> Back to Step 2
+                </a>
+                <a href="{{ url_for('multi_grn.create_step4_review', batch_id=batch.id) }}" 
+                   class="btn btn-primary">
+                    Next: Review <i data-feather="arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Item Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i data-feather="package"></i> Line Item Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addItemForm">
+                <div class="modal-body">
+                    <!-- PO Reference Information -->
+                    <div class="alert alert-info">
+                        <strong>PO Reference:</strong> 
+                        PO Line: <span id="display_po_line"></span> | 
+                        BaseEntry: <span id="display_base_entry"></span>
+                    </div>
+
+                    <!-- Item Code and Name (Auto-validated) -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_code" class="form-label">Item Code <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="item_code" name="item_code" readonly required>
+                                <span id="item_validation_status" class="form-text"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_name" class="form-label">Item Name</label>
+                                <input type="text" class="form-control" id="item_name" name="item_name" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quantity and Management Type -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" step="0.001" required readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="management_type" class="form-label">Management Type</label>
+                                <input type="text" class="form-control" id="management_type" name="management_type" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="unit_of_measure" class="form-label">UoM</label>
+                                <input type="text" class="form-control" id="unit_of_measure" name="unit_of_measure" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warehouse and Bin Location (Auto-fill from PO) -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="warehouse_code" class="form-label">Warehouse <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="warehouse_code" name="warehouse_code" readonly>
+                                <small class="form-text text-muted">Auto-filled from PO line item</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="bin_location" class="form-label">Bin Location</label>
+                                <select class="form-select" id="bin_location" name="bin_location">
+                                    <option value="">Select bin location...</option>
+                                </select>
+                                <small class="form-text text-muted">Loaded based on warehouse selection</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Batch/Serial Details Section -->
+                    <div id="batch_serial_section" style="display: none;">
+                        <hr>
+                        <h6>Batch/Serial Details</h6>
+                        <div id="batch_serial_content"></div>
+                    </div>
+
+                    <!-- Expiry Date and Number of Packs/Bags -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="expiry_date" class="form-label">Expiry Date</label>
+                                <input type="date" class="form-control" id="expiry_date" name="expiry_date">
+                                <small class="form-text text-muted">Optional: Enter expiry date for this item</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="number_of_packs" class="form-label">Number of Packs/Bags</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="number_of_packs" name="number_of_packs" 
+                                           min="1" max="1000" value="1" step="1">
+<!--                                    <button class="btn btn-success" type="button" onclick="generateQRLabels()" -->
+<!--                                            title="Generate QR labels">-->
+<!--                                        <i data-feather="printer"></i> Generate QR Labels-->
+<!--                                    </button>-->
+                                </div>
+                                <small class="form-text text-muted">
+                                    Enter number of packs for QR label generation (integers only)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden fields -->
+                    <input type="hidden" id="po_link_id" name="po_link_id">
+                    <input type="hidden" id="line_selection_id" name="line_selection_id">
+                    <input type="hidden" id="po_line_num" name="po_line_num">
+                    <input type="hidden" id="base_entry" name="base_entry">
+                    <input type="hidden" id="batch_id" name="batch_id" value="{{ batch.id }}">
+                    <input type="hidden" id="batch_required" name="batch_required" value="N">
+                    <input type="hidden" id="serial_required" name="serial_required" value="N">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-feather="save"></i> Save Details
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- QR Labels Modal -->
+<div class="modal fade" id="qrLabelsModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i data-feather="printer"></i> QR Code Labels</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="qrLabelsLoading" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating labels...</p>
+                </div>
+                <div id="qrLabelsContent">
+                    <!-- QR Labels will be generated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i data-feather="printer"></i> Print Labels
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+    let currentLineId = null;
+    let currentPoLinkId = null;
+    let currentItemCode = null;
+    let currentItemManagementType = null;
+
+    // Show Add Item Modal with PO line details
+    function showAddItemModal(poLinkId, lineId, poLineNum, baseEntry, itemCode, itemName, quantity, warehouseCode) {
+        currentLineId = lineId;
+        currentPoLinkId = poLinkId;
+        currentItemCode = itemCode;
+
+        // Populate PO reference information
+        document.getElementById('display_po_line').textContent = poLineNum;
+        document.getElementById('display_base_entry').textContent = baseEntry;
+
+        // Populate form fields
+        document.getElementById('po_link_id').value = poLinkId;
+        document.getElementById('line_selection_id').value = lineId;
+        document.getElementById('po_line_num').value = poLineNum;
+        document.getElementById('base_entry').value = baseEntry;
+        document.getElementById('item_code').value = itemCode;
+        document.getElementById('item_name').value = itemName;
+        document.getElementById('quantity').value = quantity;
+        document.getElementById('warehouse_code').value = warehouseCode || '7000-FG';
+        document.getElementById('number_of_packs').value = 1;
+
+        // Auto-validate item code
+        validateItemCode(itemCode);
+
+        // Load bin locations for the warehouse
+        if (warehouseCode) {
+            loadBinLocations(warehouseCode);
+        }
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('addItemModal'));
+        modal.show();
+    }
+
+    // Remove Line Item
+    function removeLine(batchId, lineId, itemCode) {
+        if (!confirm(`Are you sure you want to remove line item "${itemCode}"? This will delete all batch/serial details and QR labels for this item.`)) {
+            return;
+        }
+        
+        fetch(`/multi-grn/remove-line/${batchId}/${lineId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Successfully removed - reload to refresh counters
+                location.reload();
+            } else {
+                // Failed (e.g., last line) - show error, do NOT reload
+                alert(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error removing line:', error);
+            alert('Error removing line item. Please try again.');
+        });
+    }
+
+    // Validate Item Code (Same as GRPO Module)
+    function validateItemCode(itemCode) {
+        if (!itemCode) return;
+
+        const statusSpan = document.getElementById('item_validation_status');
+        statusSpan.innerHTML = '<span class="text-info"><i data-feather="loader"></i> Validating...</span>';
+        feather.replace();
+
+        fetch(`/multi-grn/validate-item/${encodeURIComponent(itemCode)}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Validation result:', data);
+
+                if (data.success) {
+                    statusSpan.innerHTML = '<span class="text-success">✓ Item validated</span>';
+                    
+                    // Set management type
+                    let managementType = 'Standard';
+                    if (data.serial_required) {
+                        managementType = 'Serial Managed';
+                        document.getElementById('batch_required').value = 'N';
+                        document.getElementById('serial_required').value = 'Y';
+                    } else if (data.batch_required) {
+                        managementType = 'Batch Managed';
+                        document.getElementById('batch_required').value = 'Y';
+                        document.getElementById('serial_required').value = 'N';
+                    } else {
+                        document.getElementById('batch_required').value = 'N';
+                        document.getElementById('serial_required').value = 'N';
+                    }
+                    
+                    document.getElementById('management_type').value = managementType;
+                    currentItemManagementType = managementType;
+                    
+                    if (data.uom) {
+                        document.getElementById('unit_of_measure').value = data.uom;
+                    }
+                } else {
+                    statusSpan.innerHTML = '<span class="text-danger">⚠ Validation failed</span>';
+                    alert('⚠️ Item validation failed: ' + (data.error || 'Unknown error'));
+                }
+                
+                feather.replace();
+            })
+            .catch(error => {
+                console.error('❌ Error validating item:', error);
+                statusSpan.innerHTML = '<span class="text-danger">⚠ Error validating</span>';
+                feather.replace();
+            });
+    }
+
+    // Load Bin Locations based on Warehouse (Same as GRPO Module)
+    function loadBinLocations(warehouseCode) {
+        const binSelect = document.getElementById('bin_location');
+        binSelect.innerHTML = '<option value="">Loading bins...</option>';
+
+        fetch(`/multi-grn/api/get-bins?warehouse=${encodeURIComponent(warehouseCode)}`)
+            .then(response => response.json())
+            .then(data => {
+                binSelect.innerHTML = '<option value="">Select bin location...</option>';
+                
+                if (data.success && data.bins && data.bins.length > 0) {
+                    data.bins.forEach(bin => {
+                        const option = document.createElement('option');
+                        option.value = bin.BinCode || bin.AbsEntry;
+                        option.textContent = bin.BinCode || 'N/A';
+                        binSelect.appendChild(option);
+                    });
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No bins available';
+                    binSelect.appendChild(option);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading bins:', error);
+                binSelect.innerHTML = '<option value="">Error loading bins</option>';
+            });
+    }
+
+    // Reload bin locations when warehouse changes
+    document.addEventListener('DOMContentLoaded', function() {
+        const warehouseInput = document.getElementById('warehouse_code');
+        if (warehouseInput) {
+            warehouseInput.addEventListener('change', function() {
+                const warehouseCode = this.value;
+                if (warehouseCode) {
+                    loadBinLocations(warehouseCode);
+                }
+            });
+        }
+    });
+
+    // Generate QR Labels (Serial, Batch, or Standard items)
+    function generateQRLabels() {
+        const lineSelectionId = document.getElementById('line_selection_id').value;
+        const batchId = document.getElementById('batch_id').value;
+        const numberOfPacks = parseInt(document.getElementById('number_of_packs').value);
+        const batchRequired = document.getElementById('batch_required').value;
+        const serialRequired = document.getElementById('serial_required').value;
+
+        if (!lineSelectionId || !batchId) {
+            alert('Missing required data for QR generation');
+            return;
+        }
+
+        if (!numberOfPacks || numberOfPacks < 1) {
+            alert('Please enter a valid number of packs (minimum 1)');
+            return;
+        }
+
+        // Determine label type based on management
+        let labelType = 'regular';
+        if (serialRequired === 'Y') {
+            labelType = 'serial';
+        } else if (batchRequired === 'Y') {
+            labelType = 'batch';
+        }
+
+        // Show loading indicator
+        const qrLabelsContent = document.getElementById('qrLabelsContent');
+        qrLabelsContent.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Generating labels...</p></div>';
+
+        // Call API to generate barcode labels
+        fetch('/multi-grn/api/generate-barcode-labels', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                batch_id: parseInt(batchId),
+                line_selection_id: parseInt(lineSelectionId),
+                label_type: labelType
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.labels && data.labels.length > 0) {
+                displayQRLabels(data.labels);
+            } else {
+                qrLabelsContent.innerHTML = `<div class="alert alert-warning">${data.error || 'No labels generated'}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error generating QR labels:', error);
+            qrLabelsContent.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+        });
+    }
+
+    // Show Multi GRN QR Labels for a line item (FIXED VERSION)
+    function showMultiGRNQRLabels(buttonElement) {
+        console.log('🔍 showMultiGRNQRLabels called with button:', buttonElement);
+        
+        // Get data from button attributes
+        const lineSelectionId = buttonElement.getAttribute('data-line-id');
+        const itemCode = buttonElement.getAttribute('data-item-code');
+        const itemDescription = buttonElement.getAttribute('data-item-description');
+        const labelType = buttonElement.getAttribute('data-label-type');
+        const batchId = {{ batch.id }};
+        
+        console.log('📊 Data extracted:', {
+            lineSelectionId,
+            itemCode,
+            itemDescription,
+            labelType,
+            batchId
+        });
+        
+        // Show modal with loading state
+        const modal = new bootstrap.Modal(document.getElementById('qrLabelsModal'));
+        modal.show();
+        
+        const loadingDiv = document.getElementById('qrLabelsLoading');
+        const contentDiv = document.getElementById('qrLabelsContent');
+        
+        loadingDiv.style.display = 'block';
+        contentDiv.innerHTML = '';
+        
+        console.log('🌐 Making API call to /multi-grn/api/generate-barcode-labels');
+        
+        // Make API call
+        fetch('/multi-grn/api/generate-barcode-labels', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                batch_id: parseInt(batchId),
+                line_selection_id: parseInt(lineSelectionId),
+                label_type: labelType,
+                item_code: itemCode,
+                item_description: itemDescription
+            })
+        })
+        .then(response => {
+            console.log('📥 Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Response data:', data);
+            loadingDiv.style.display = 'none';
+            
+            if (data.success && data.labels && data.labels.length > 0) {
+                console.log(`📦 Displaying ${data.labels.length} labels`);
+                displayQRLabels(data.labels);
+            } else {
+                console.warn('⚠️ No labels returned or error:', data.error);
+                contentDiv.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i data-feather="alert-triangle"></i> 
+                        ${data.error || 'No labels available to generate'}
+                    </div>
+                `;
+                feather.replace();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error generating QR labels:', error);
+            loadingDiv.style.display = 'none';
+            contentDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i data-feather="alert-circle"></i> 
+                    Network error generating QR labels: ${error.message}
+                </div>
+            `;
+            feather.replace();
+        });
+    }
+
+    // Display QR Labels in Modal (Compact format matching GRPO Module)
+    function displayQRLabels(labels) {
+        console.log('🎨 Displaying labels:', labels);
+        
+        const content = document.getElementById('qrLabelsContent');
+        
+        if (!labels || labels.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">No labels to display</div>';
+            return;
+        }
+        
+        // Group labels by batch_number to avoid duplicates
+        const uniqueLabels = [];
+        const seenBatches = new Set();
+        
+        labels.forEach(label => {
+            const batchKey = `${label.batch_number || label.serial_number || 'standard'}_${label.sequence}`;
+            if (!seenBatches.has(batchKey)) {
+                seenBatches.add(batchKey);
+                uniqueLabels.push(label);
+            }
+        });
+        
+        console.log(`📊 Original labels: ${labels.length}, Unique labels: ${uniqueLabels.length}`);
+        
+        let html = '<div class="container-fluid"><div class="row">';
+
+        uniqueLabels.forEach((label, index) => {
+            // Extract just the batch number without the item code prefix
+            const batchDisplay = label.batch_number || label.serial_number || '';
+            
+            html += `
+                <div class="col-md-6 mb-3 d-flex print-page-break">
+                    <div class="card border-dark flex-fill" style="max-width: 500px;">
+                        <div class="card-header bg-dark text-white text-center py-2">
+                            <strong>${batchDisplay || `Item ${label.sequence || index + 1}`}</strong>
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="row g-2">
+                                <div class="col-5 text-center">
+                                    ${label.qr_code_image ? `<img src="${label.qr_code_image}" alt="QR Code" class="img-fluid" style="max-width: 150px;">` : '<p class="text-muted small">QR Code unavailable</p>'}
+                                    <div class="mt-2">
+                                        <small><strong>${label.grn_number || 'N/A'}</strong></small>
+                                    </div>
+                                </div>
+                                <div class="col-7">
+                                    <table class="table table-sm table-borderless mb-0" style="font-size: 0.9rem;">
+                                        <tr>
+                                            <td class="fw-bold py-1">PO:</td>
+                                            <td class="py-1">${label.po_number || 'N/A'}</td>
+                                        </tr>
+                                        ${label.item_code ? `<tr><td class="fw-bold py-1">Item Code:</td><td class="py-1">${label.item_code}</td></tr>` : ''}
+                                        ${label.batch_number ? `<tr><td class="fw-bold py-1">Batch:</td><td class="py-1">${label.batch_number}</td></tr>` : ''}
+                                        ${label.serial_number ? `<tr><td class="fw-bold py-1">Serial:</td><td class="py-1">${label.serial_number}</td></tr>` : ''}
+                                        <tr>
+                                            <td class="fw-bold py-1">Qty per Pack:</td>
+                                            <td class="py-1">${label.qty_per_pack || label.quantity || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Pack:</td>
+                                            <td class="py-1">${label.sequence || index + 1} of ${label.total || uniqueLabels.length}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">GRN Date:</td>
+                                            <td class="py-1">${label.grn_date || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Exp Date:</td>
+                                            <td class="py-1">${label.expiration_date || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Bin:</td>
+                                            <td class="py-1">${label.bin_location || 'N/A'}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div></div>';
+        content.innerHTML = html;
+        
+        console.log('✅ Labels displayed successfully');
+    }
+
+    // Handle form submission
+    document.getElementById('addItemForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const data = {
+            line_selection_id: formData.get('line_selection_id'),
+            quantity: formData.get('quantity'),
+            warehouse_code: formData.get('warehouse_code'),
+            bin_location: formData.get('bin_location'),
+            number_of_bags: formData.get('number_of_packs'),
+            expiration_date: formData.get('expiry_date')
+        };
+
+        console.log('Saving line item details:', data);
+
+        fetch('/multi-grn/api/update-line-item', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('✅ Line item details saved successfully!');
+                
+                // Update the table row
+                document.getElementById(`qty_${currentLineId}`).textContent = data.quantity;
+                document.getElementById(`warehouse_${currentLineId}`).textContent = data.warehouse_code;
+                document.getElementById(`bin_${currentLineId}`).textContent = data.bin_location || '-';
+                document.getElementById(`packs_${currentLineId}`).textContent = data.number_of_bags || '-';
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('addItemModal')).hide();
+                
+                // Reload page to show updated data
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            } else {
+                alert('❌ Error: ' + (result.error || 'Failed to save details'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving details:', error);
+            alert('Network error. Please try again.');
+        });
+    });
+
+    // Initialize Feather icons
+    document.addEventListener('DOMContentLoaded', function() {
+        feather.replace();
+        console.log('✅ Feather icons initialized');
+        console.log('✅ Page loaded - batch_id:', {{ batch.id }});
+    });
+    
+    // Re-initialize feather icons when modal is shown
+    document.querySelectorAll('.modal').forEach(function(modal) {
+        modal.addEventListener('shown.bs.modal', function() {
+            feather.replace();
+        });
+    });
+</script>
+
+<style>
+    @media print {
+        /* Hide everything except the labels */
+        body * {
+            visibility: hidden;
+        }
+        #qrLabelsContent, #qrLabelsContent * {
+            visibility: visible;
+        }
+        #qrLabelsContent {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .modal-header, .modal-footer {
+            display: none !important;
+        }
+        
+        /* Each label on separate page */
+        .print-page-break {
+            page-break-after: always;
+            page-break-inside: avoid;
+        }
+        
+        /* Make labels full width when printing */
+        .print-page-break {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        .print-page-break .card {
+            max-width: 100% !important;
+            margin: 0 auto;
+            border: 2px solid #000 !important;
+        }
+        
+        /* Hide the row/col structure for printing */
+        .row {
+            display: block !important;
+        }
+        
+        .col-md-6 {
+            width: 100% !important;
+            float: none !important;
+        }
+    }
+    
+    @media screen {
+        .print-page-break {
+            page-break-after: auto;
+        }
+    }
+</style>
+{% endblock %}

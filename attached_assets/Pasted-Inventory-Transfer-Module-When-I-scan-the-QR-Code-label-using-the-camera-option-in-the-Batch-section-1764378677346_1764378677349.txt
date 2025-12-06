@@ -1,0 +1,97 @@
+Inventory Transfer Module
+When I scan the QR Code label using the camera option in the Batch section, the system should decode the label and extract the actual values, for example:
+
+{
+  "id": "MGN-6-13-1-1",
+  "po": "252630051",
+  "item": "BatchItem_01",
+  "batch": "20251129-BatchItem_-1",
+  "qty": 10,
+  "pack": "1 of 2",
+  "grn_date": "2025-11-29",
+  "exp_date": "2025-12-06",
+  "bin": "7000-FG-A101"
+}
+
+
+I should not need to manually select the From Bin Location or Batch.
+Instead, the decoded QR values must automatically fill the Batch, Bin Location, and Quantity (pack-wise, based on the decoded qty).
+
+If I scan one or more batches, each scan must be added to the JSON payload that will be posted to SAP B1.
+
+The SAP B1 POST JSON should be generated in the following format:
+
+{
+  "DocDate": "2025-11-05T00:00:00Z",
+  "Comments": "QC Approved WMS Transfer 2 by admin",
+  "FromWarehouse": "7000-FG",
+  "ToWarehouse": "7000-QFG",
+  "BPLID": 5,
+  "StockTransferLines": [
+    {
+      "LineNum": 0,
+      "ItemCode": "IPhone",
+      "Quantity": 2.0,
+      "WarehouseCode": "7000-QFG",
+      "FromWarehouseCode": "7000-FG",
+      "BaseEntry": 27,
+      "BaseLine": 0,
+      "BaseType": "1250000001",
+      "SerialNumbers": [
+        {
+          "BaseLineNumber": 0,
+          "InternalSerialNumber": "IP000001",
+          "Quantity": 1
+        },
+        {
+          "BaseLineNumber": 0,
+          "InternalSerialNumber": "IP000002",
+          "Quantity": 1
+        }
+      ],
+      "BatchNumbers": [],
+      "StockTransferLinesBinAllocations": []
+    },
+    {
+      "LineNum": 1,
+      "ItemCode": "BatchItem_01",
+      "Quantity": 30.0,
+      "WarehouseCode": "7000-QFG",
+      "FromWarehouseCode": "7000-FG",
+      "BaseEntry": 27,
+      "BaseLine": 1,
+      "BaseType": "1250000001",
+      "BatchNumbers": [
+        {
+          "BaseLineNumber": 1,
+          "BatchNumberProperty": "B001t",
+          "Quantity": 10.0
+        },
+        {
+          "BaseLineNumber": 1,
+          "BatchNumberProperty": "B001t_01",
+          "Quantity": 10.0
+        },
+        {
+          "BaseLineNumber": 1,
+          "BatchNumberProperty": "B001t_02",
+          "Quantity": 10.0
+        }
+      ],
+      "SerialNumbers": [],
+      "StockTransferLinesBinAllocations": []
+    },
+    {
+      "LineNum": 2,
+      "ItemCode": "Non_Sr_Bt",
+      "Quantity": 2.0,
+      "WarehouseCode": "7000-QFG",
+      "FromWarehouseCode": "7000-FG",
+      "BaseEntry": 27,
+      "BaseLine": 2,
+      "BatchNumbers": [],
+      "SerialNumbers": [],
+      "StockTransferLinesBinAllocations": []
+    }
+  ]
+}

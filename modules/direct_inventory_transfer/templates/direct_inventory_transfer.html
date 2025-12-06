@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block title %}Direct Inventory Transfer{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-arrow-left-right"></i> Direct Inventory Transfer</h2>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-house"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Transfer Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-qr-code-scan"></i> Scan QR Code or Enter Details</h5>
+        </div>
+        <div class="card-body">
+            <form id="directTransferForm">
+                <!-- QR Code Scanner Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <label class="form-label fw-bold">QR Code Scanner</label>
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                            <input type="text" class="form-control" id="qrCodeInput" 
+                                                   placeholder="Scan or paste QR code data here..." autofocus>
+                                            <button type="button" class="btn btn-primary" id="decodeQrBtn">
+                                                <i class="bi bi-check-circle"></i> Decode
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">Scan the QR code label or paste the QR code data to auto-fill the form</small>
+                                    </div>
+                                    <div class="col-md-4 text-center">
+                                        <button type="button" class="btn btn-success btn-lg" id="startCameraBtn">
+                                            <i class="bi bi-camera"></i> Start Camera
+                                        </button>
+                                        <br><small class="text-muted">Use camera to scan</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Camera Scanner Container (hidden by default) -->
+                                <div id="cameraScannerContainer" style="display: none; margin-top: 15px;">
+                                    <div class="text-center">
+                                        <video id="qrScannerVideo" style="width: 100%; max-width: 640px; border: 2px solid #007bff; border-radius: 8px;"></video>
+                                        <br>
+                                        <button type="button" class="btn btn-danger mt-2" id="stopCameraBtn">
+                                            <i class="bi bi-stop-circle"></i> Stop Camera
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Warehouse Selection -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="fromWarehouse" class="form-label fw-bold">From Warehouse <span class="text-danger">*</span></label>
+                        <select class="form-select" id="fromWarehouse" name="from_warehouse" required>
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="toWarehouse" class="form-label fw-bold">To Warehouse <span class="text-danger">*</span></label>
+                        <select class="form-select" id="toWarehouse" name="to_warehouse" required>
+                            <option value="">Select Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Bin Location Selection -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="fromBin" class="form-label fw-bold">From Bin Location</label>
+                        <select class="form-select" id="fromBin" name="from_bin">
+                            <option value="">Select From Warehouse first</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="toBin" class="form-label fw-bold">To Bin Location</label>
+                        <select class="form-select" id="toBin" name="to_bin">
+                            <option value="">Select To Warehouse first</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Item Details Section (Auto-filled from QR Code) -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="itemCode" class="form-label fw-bold">Item Code <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="itemCode" name="item_code" required>
+                            <button type="button" class="btn btn-outline-secondary" id="validateItemBtn">
+                                <i class="bi bi-check-circle"></i> Validate
+                            </button>
+                        </div>
+                        <small class="text-muted">Will be auto-filled from QR code</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="itemDescription" class="form-label fw-bold">Item Description</label>
+                        <input type="text" class="form-control" id="itemDescription" name="item_description" readonly>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="quantity" class="form-label fw-bold">Quantity <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" class="form-control" id="quantity" name="quantity" min="0.01" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="batchNumber" class="form-label fw-bold">Batch Number</label>
+                        <input type="text" class="form-control" id="batchNumber" name="batch_number">
+                        <small class="text-muted">Required for batch items</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="itemType" class="form-label fw-bold">Item Type</label>
+                        <input type="text" class="form-control" id="itemType" name="item_type" readonly>
+                    </div>
+                </div>
+
+                <!-- QR Code Metadata (Read-only) -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="qrId" class="form-label">QR ID</label>
+                        <input type="text" class="form-control" id="qrId" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="qrPo" class="form-label">PO Number</label>
+                        <input type="text" class="form-control" id="qrPo" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="qrExpDate" class="form-label">Expiry Date</label>
+                        <input type="text" class="form-control" id="qrExpDate" readonly>
+                    </div>
+                </div>
+
+                <!-- Transfer Notes -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <label for="notes" class="form-label fw-bold">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Optional transfer notes..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" id="submitTransferBtn">
+                        <i class="bi bi-send"></i> Submit to SAP B1
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="resetFormBtn">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset Form
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transfer History -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Transfers</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Transfer Number</th>
+                            <th>Item Code</th>
+                            <th>Quantity</th>
+                            <th>From → To</th>
+                            <th>Status</th>
+                            <th>SAP Doc #</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transferHistoryBody">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No transfers yet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Container -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="alertToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto" id="toastTitle">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load warehouses on page load
+    loadWarehouses();
+    loadTransferHistory();
+
+    // Camera Scanner Functionality
+    document.getElementById('startCameraBtn').addEventListener('click', function() {
+        const container = document.getElementById('cameraScannerContainer');
+        const video = document.getElementById('qrScannerVideo');
+        
+        container.style.display = 'block';
+        this.style.display = 'none';
+        
+        // Start the barcode scanner
+        startBarcodeScanner('qrScannerVideo', function(scannedCode) {
+            console.log('QR Code scanned:', scannedCode);
+            
+            // Put scanned code in the input field
+            document.getElementById('qrCodeInput').value = scannedCode;
+            
+            // Stop the camera
+            stopBarcodeScanner();
+            container.style.display = 'none';
+            document.getElementById('startCameraBtn').style.display = 'block';
+            
+            // Auto-decode the QR code
+            document.getElementById('decodeQrBtn').click();
+        });
+    });
+
+    document.getElementById('stopCameraBtn').addEventListener('click', function() {
+        stopBarcodeScanner();
+        document.getElementById('cameraScannerContainer').style.display = 'none';
+        document.getElementById('startCameraBtn').style.display = 'block';
+    });
+
+    // QR Code Decode Button
+    document.getElementById('decodeQrBtn').addEventListener('click', function() {
+        const qrData = document.getElementById('qrCodeInput').value.trim();
+        
+        if (!qrData) {
+            showToast('Error', 'Please scan or paste QR code data', 'danger');
+            return;
+        }
+
+        try {
+            const data = JSON.parse(qrData);
+            
+            // Fill form fields from QR code
+            document.getElementById('itemCode').value = data.item || '';
+            document.getElementById('quantity').value = data.qty || '';
+            document.getElementById('batchNumber').value = data.batch || '';
+            
+            // Fill readonly metadata fields
+            document.getElementById('qrId').value = data.id || '';
+            document.getElementById('qrPo').value = data.po || '';
+            document.getElementById('qrExpDate').value = data.exp_date || '';
+            
+            showToast('Success', 'QR code decoded successfully! Now validate the item code.', 'success');
+            
+            // Auto-validate item code
+            document.getElementById('validateItemBtn').click();
+            
+        } catch (error) {
+            showToast('Error', 'Invalid QR code format. Expected JSON format.', 'danger');
+            console.error('QR decode error:', error);
+        }
+    });
+
+    // Validate Item Button
+    document.getElementById('validateItemBtn').addEventListener('click', function() {
+        const itemCode = document.getElementById('itemCode').value.trim();
+        
+        if (!itemCode) {
+            showToast('Error', 'Please enter an item code', 'danger');
+            return;
+        }
+
+        // Call API to validate item code
+        fetch('/api/validate-item-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ item_code: itemCode })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('itemDescription').value = data.item_description || '';
+                document.getElementById('itemType').value = data.item_type || 'none';
+                
+                // Show/hide batch field based on item type
+                if (data.batch_required) {
+                    document.getElementById('batchNumber').required = true;
+                    document.getElementById('batchNumber').parentElement.querySelector('small').textContent = 'Required for this batch item';
+                } else {
+                    document.getElementById('batchNumber').required = false;
+                    document.getElementById('batchNumber').parentElement.querySelector('small').textContent = 'Optional';
+                }
+                
+                showToast('Success', `Item validated: ${data.item_description}`, 'success');
+            } else {
+                showToast('Error', data.error || 'Item validation failed', 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error', 'Failed to validate item: ' + error.message, 'danger');
+            console.error('Validation error:', error);
+        });
+    });
+
+    // From Warehouse change handler - load bins
+    document.getElementById('fromWarehouse').addEventListener('change', function() {
+        const warehouseCode = this.value;
+        loadBins(warehouseCode, 'fromBin');
+    });
+
+    // To Warehouse change handler - load bins
+    document.getElementById('toWarehouse').addEventListener('change', function() {
+        const warehouseCode = this.value;
+        loadBins(warehouseCode, 'toBin');
+    });
+
+    // Submit Transfer Button
+    document.getElementById('submitTransferBtn').addEventListener('click', function() {
+        const formData = {
+            from_warehouse: document.getElementById('fromWarehouse').value,
+            to_warehouse: document.getElementById('toWarehouse').value,
+            from_bin: document.getElementById('fromBin').value,
+            to_bin: document.getElementById('toBin').value,
+            item_code: document.getElementById('itemCode').value,
+            item_description: document.getElementById('itemDescription').value,
+            quantity: document.getElementById('quantity').value,
+            batch_number: document.getElementById('batchNumber').value,
+            item_type: document.getElementById('itemType').value,
+            notes: document.getElementById('notes').value,
+            qr_metadata: {
+                id: document.getElementById('qrId').value,
+                po: document.getElementById('qrPo').value,
+                exp_date: document.getElementById('qrExpDate').value
+            }
+        };
+
+        // Validation
+        if (!formData.from_warehouse || !formData.to_warehouse) {
+            showToast('Error', 'Please select both From and To warehouses', 'danger');
+            return;
+        }
+
+        if (!formData.item_code) {
+            showToast('Error', 'Please enter and validate an item code', 'danger');
+            return;
+        }
+
+        if (!formData.quantity || formData.quantity <= 0) {
+            showToast('Error', 'Please enter a valid quantity', 'danger');
+            return;
+        }
+
+        // Check if batch is required
+        if (document.getElementById('batchNumber').required && !formData.batch_number) {
+            showToast('Error', 'Batch number is required for this item', 'danger');
+            return;
+        }
+
+        // Submit to backend
+        fetch('/api/direct-transfer/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', `Transfer submitted successfully! SAP Doc #: ${data.sap_doc_number}`, 'success');
+                document.getElementById('resetFormBtn').click();
+                loadTransferHistory();
+            } else {
+                showToast('Error', data.error || 'Failed to submit transfer', 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error', 'Failed to submit transfer: ' + error.message, 'danger');
+            console.error('Submit error:', error);
+        });
+    });
+
+    // Reset Form Button
+    document.getElementById('resetFormBtn').addEventListener('click', function() {
+        document.getElementById('directTransferForm').reset();
+        document.getElementById('qrCodeInput').value = '';
+        document.getElementById('itemDescription').value = '';
+        document.getElementById('itemType').value = '';
+        document.getElementById('qrId').value = '';
+        document.getElementById('qrPo').value = '';
+        document.getElementById('qrExpDate').value = '';
+        document.getElementById('qrCodeInput').focus();
+    });
+
+    // Helper Functions
+    function loadWarehouses() {
+        fetch('/api/get-warehouses')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.warehouses) {
+                    const fromSelect = document.getElementById('fromWarehouse');
+                    const toSelect = document.getElementById('toWarehouse');
+                    
+                    data.warehouses.forEach(warehouse => {
+                        const option1 = new Option(warehouse.WarehouseName || warehouse.WarehouseCode, warehouse.WarehouseCode);
+                        const option2 = new Option(warehouse.WarehouseName || warehouse.WarehouseCode, warehouse.WarehouseCode);
+                        fromSelect.add(option1);
+                        toSelect.add(option2);
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading warehouses:', error));
+    }
+
+    function loadBins(warehouseCode, selectId) {
+        if (!warehouseCode) {
+            document.getElementById(selectId).innerHTML = '<option value="">Select warehouse first</option>';
+            return;
+        }
+
+        fetch(`/api/get-bins?warehouse=${warehouseCode}`)
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">Select Bin Location</option>';
+                
+                if (data.success && data.bins) {
+                    data.bins.forEach(bin => {
+                        const option = new Option(bin.BinCode || bin.BinName, bin.BinCode);
+                        select.add(option);
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading bins:', error));
+    }
+
+    function loadTransferHistory() {
+        fetch('/api/direct-transfer/history')
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('transferHistoryBody');
+                tbody.innerHTML = '';
+                
+                if (data.success && data.transfers && data.transfers.length > 0) {
+                    data.transfers.forEach(transfer => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${transfer.transfer_number}</td>
+                            <td>${transfer.item_code}</td>
+                            <td>${transfer.quantity}</td>
+                            <td>${transfer.from_warehouse} → ${transfer.to_warehouse}</td>
+                            <td><span class="badge bg-${getStatusColor(transfer.status)}">${transfer.status}</span></td>
+                            <td>${transfer.sap_document_number || 'N/A'}</td>
+                            <td>${new Date(transfer.created_at).toLocaleString()}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No transfers yet</td></tr>';
+                }
+            })
+            .catch(error => console.error('Error loading transfer history:', error));
+    }
+
+    function getStatusColor(status) {
+        const colors = {
+            'draft': 'secondary',
+            'submitted': 'info',
+            'posted': 'success',
+            'qc_approved': 'primary',
+            'rejected': 'danger'
+        };
+        return colors[status] || 'secondary';
+    }
+
+    function showToast(title, message, type = 'info') {
+        const toast = document.getElementById('alertToast');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        toastTitle.textContent = title;
+        toastMessage.textContent = message;
+        
+        // Reset classes
+        toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+        toast.classList.add('bg-' + type, 'text-white');
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // Auto-focus on QR code input
+    document.getElementById('qrCodeInput').focus();
+});
+</script>
+{% endblock %}

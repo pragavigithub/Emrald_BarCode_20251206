@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('multi_grn.index') }}">Multiple GRN</a></li>
+            <li class="breadcrumb-item active">Batch #{{ batch.id }}</li>
+        </ol>
+    </nav>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="fas fa-eye"></i> GRN Batch #{{ batch.id }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Customer:</strong> {{ batch.customer_name }} ({{ batch.customer_code }})</p>
+                    <p><strong>Created By:</strong> {{ batch.user.username }}</p>
+                    <p><strong>Created At:</strong> {{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Status:</strong> 
+                        {% if batch.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                        {% elif batch.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                            <span class="badge bg-info">{{ batch.status }}</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Total POs:</strong> {{ batch.total_pos }}</p>
+                    <p><strong>GRNs Created:</strong> {{ batch.total_grns_created }}</p>
+                </div>
+            </div>
+
+            {% if batch.error_log %}
+            <div class="alert alert-danger mt-3">
+                <strong>Error Log:</strong><br>
+                <pre>{{ batch.error_log }}</pre>
+            </div>
+            {% endif %}
+
+            <h5 class="mt-4">Purchase Orders & GRNs</h5>
+            {% for po_link in batch.po_links %}
+            <div class="card mb-3">
+                <div class="card-header {% if po_link.status == 'posted' %}bg-success text-white{% elif po_link.status == 'failed' %}bg-danger text-white{% else %}bg-light{% endif %}">
+                    <h6 class="mb-0">PO #{{ po_link.po_doc_num }}
+                        {% if po_link.sap_grn_doc_num %}
+                            → GRN #{{ po_link.sap_grn_doc_num }}
+                        {% endif %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Status:</strong> {{ po_link.status }}</p>
+                    {% if po_link.error_message %}
+                    <p class="text-danger"><strong>Error:</strong> {{ po_link.error_message }}</p>
+                    {% endif %}
+                    
+                    <h6>Line Items:</h6>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>Warehouse</th>
+                                <th>QC Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for line in po_link.line_selections %}
+                            <tr>
+                                <td>{{ line.item_code }}</td>
+                                <td>{{ line.item_description }}</td>
+                                <td>{{ line.selected_quantity }}</td>
+                                <td>{{ line.warehouse_code }}</td>
+                                <td>
+                                    {% if line.line_status == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif line.line_status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif line.line_status == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ line.line_status or 'N/A' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if (line.batch_details|length > 0) or (line.serial_details|length > 0) %}
+                                    <button class="btn btn-sm btn-info" 
+                                            data-line-id="{{ line.id }}"
+                                            data-item-code="{{ line.item_code }}"
+                                            data-item-description="{{ line.item_description }}"
+                                            data-label-type="{% if line.serial_details|length > 0 %}serial{% else %}batch{% endif %}"
+                                            onclick="showMultiGRNQRLabels(this)"
+                                            title="Print QR Labels">
+                                        <i class="fas fa-print"></i> Print {% if line.serial_details|length > 0 %}Serial{% else %}Batch{% endif %} Labels
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted">No labels available</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="mt-4">
+                <a href="{{ url_for('multi_grn.index') }}" class="btn btn-secondary">Back to List</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Labels Modal -->
+<div class="modal fade" id="qrLabelsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-qrcode"></i> QR Code Labels</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="qrLabelsLoading" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating labels...</p>
+                </div>
+                <div id="qrLabelsContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print"></i> Print All Labels
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Show Multi GRN QR Labels for a line item
+    function showMultiGRNQRLabels(buttonElement) {
+        // Get data from button attributes
+        const lineSelectionId = buttonElement.getAttribute('data-line-id');
+        const itemCode = buttonElement.getAttribute('data-item-code');
+        const itemDescription = buttonElement.getAttribute('data-item-description');
+        const labelType = buttonElement.getAttribute('data-label-type');
+        const batchId = {{ batch.id }};
+        
+        // Show modal with loading state
+        const modal = new bootstrap.Modal(document.getElementById('qrLabelsModal'));
+        modal.show();
+        
+        document.getElementById('qrLabelsLoading').style.display = 'block';
+        document.getElementById('qrLabelsContent').innerHTML = '';
+        
+        // Make API call
+        fetch('/multi-grn/api/generate-barcode-labels', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                batch_id: batchId,
+                line_selection_id: parseInt(lineSelectionId),
+                label_type: labelType,
+                item_code: itemCode,
+                item_description: itemDescription
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('qrLabelsLoading').style.display = 'none';
+            
+            if (data.success && data.labels && data.labels.length > 0) {
+                displayQRLabels(data.labels);
+            } else {
+                document.getElementById('qrLabelsContent').innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        ${data.error || 'No labels available to generate'}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('qrLabelsLoading').style.display = 'none';
+            console.error('Error generating QR labels:', error);
+            document.getElementById('qrLabelsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i> 
+                    Network error generating QR labels: ${error.message}
+                </div>
+            `;
+        });
+    }
+
+    // Display QR Labels in Modal (Compact format matching GRPO Module)
+    function displayQRLabels(labels) {
+        const content = document.getElementById('qrLabelsContent');
+        
+        if (!labels || labels.length === 0) {
+            content.innerHTML = '<div class="alert alert-info">No labels to display</div>';
+            return;
+        }
+        
+        let html = '<div class="container-fluid"><div class="row">';
+
+        labels.forEach((label, index) => {
+            html += `
+                <div class="col-md-6 mb-3 d-flex">
+                    <div class="card border-dark flex-fill" style="max-width: 500px;">
+                        <div class="card-header bg-light text-center py-1">
+                            <small><strong>${label.item_code || 'Item'} - ${label.batch_number || label.serial_number || ''}</strong></small>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="row g-2">
+                                <div class="col-5 text-center">
+                                    ${label.qr_code_image ? `<img src="${label.qr_code_image}" alt="QR Code" class="img-fluid" style="max-width: 150px;">` : '<p class="text-muted small">QR Code unavailable</p>'}
+                                    <div class="mt-1">
+                                        <small><strong>${label.grn_number || 'N/A'}</strong></small>
+                                    </div>
+                                </div>
+                                <div class="col-7">
+                                    <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                                        <tr>
+                                            <td class="fw-bold py-1">PO:</td>
+                                            <td class="py-1">${label.po_number || 'N/A'}</td>
+                                        </tr>
+                                        ${label.batch_number ? `<tr><td class="fw-bold py-1">Batch:</td><td class="py-1">${label.batch_number}</td></tr>` : ''}
+                                        ${label.serial_number ? `<tr><td class="fw-bold py-1">Serial:</td><td class="py-1">${label.serial_number}</td></tr>` : ''}
+                                        <tr>
+                                            <td class="fw-bold py-1">Qty per Pack:</td>
+                                            <td class="py-1">${label.qty_per_pack || label.quantity || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Pack:</td>
+                                            <td class="py-1">${label.sequence || index + 1} of ${label.total || labels.length}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">GRN Date:</td>
+                                            <td class="py-1">${label.grn_date || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Exp Date:</td>
+                                            <td class="py-1">${label.expiration_date || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold py-1">Bin:</td>
+                                            <td class="py-1">${label.bin_location || 'N/A'}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div></div>';
+        content.innerHTML = html;
+    }
+</script>
+
+<style>
+    @media print {
+        /* Hide everything except the labels */
+        body * {
+            visibility: hidden;
+        }
+        #qrLabelsContent, #qrLabelsContent * {
+            visibility: visible;
+        }
+        #qrLabelsContent {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .modal-header, .modal-footer {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}

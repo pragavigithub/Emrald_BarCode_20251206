@@ -1,0 +1,1697 @@
+"""
+REST API Module for Warehouse Management System
+Provides JSON REST API endpoints for all models
+Operations: GET (list/detail), POST (create), PATCH (update), DELETE
+
+SECURITY IMPLEMENTATION:
+=====================
+This module implements role-based access control (RBAC) and resource ownership checks.
+
+Authorization Levels:
+1. Admin Only - Full access to all resources (user management, system configuration)
+2. Permission-Based - Users must have specific permissions (e.g., 'inventory_transfer', 'grpo')
+3. Ownership-Based - Users can only access/modify resources they created
+4. Self-Access - Users can view/edit their own user profile only
+
+Security Decorators:
+- @require_admin - Requires admin role
+- @require_permission('permission_name') - Requires specific permission
+- check_resource_ownership(resource) - Validates user owns the resource
+
+Security Pattern Applied To:
+✅ User Management (GET, POST, PATCH, DELETE) - Admin only, self-access for viewing
+✅ Inventory Transfers (GET, POST, PATCH, DELETE) - Permission + ownership checks
+
+TODO - Apply Same Pattern To Remaining Endpoints:
+- Pick Lists (require 'pick_list' permission + ownership check)
+- Inventory Counts (require 'inventory_counting' permission + ownership check)
+- GRPO Documents (require 'grpo' permission + ownership check)
+- Multi GRN Batches (require 'multiple_grn' permission + ownership check)
+- Delivery Documents (require 'sales_delivery' permission + ownership check)
+- Serial Transfers (require 'serial_transfer' permission + ownership check)
+- Direct Transfers (require 'direct_inventory_transfer' permission + ownership check)
+- QR Labels (ownership check)
+- SAP Inventory Counts (require 'inventory_counting' permission + ownership check)
+
+Implementation Steps for Each Resource:
+1. Add @require_permission decorator to all endpoints
+2. Add ownership checks to GET/PATCH/DELETE operations
+3. Filter GET list endpoints by user_id for non-admins
+4. Prevent users from modifying resources they don't own
+
+Example Pattern:
+    @app.route('/api/rest/resource', methods=['GET'])
+    @login_required
+    @require_permission('permission_name')
+    def api_get_resources():
+        if check_admin_permission():
+            items = Resource.query.all()
+        else:
+            items = Resource.query.filter_by(user_id=current_user.id).all()
+        return jsonify({'success': True, 'data': [serialize_model(i) for i in items]})
+"""
+from flask import jsonify, request
+from flask_login import login_required, current_user
+from datetime import datetime
+from sqlalchemy.exc import IntegrityError
+from app import app, db
+from models import (
+    User, InventoryTransfer, InventoryTransferItem, TransferScanState,
+    PickList, PickListItem, PickListLine, PickListBinAllocation,
+    InventoryCount, InventoryCountItem, SAPInventoryCount, SAPInventoryCountLine,
+    BarcodeLabel, BinLocation, BinItem, BinScanningLog, QRCodeLabel,
+    SalesOrder, SalesOrderLine, DocumentNumberSeries,
+    SerialNumberTransfer, SerialNumberTransferItem, SerialNumberTransferSerial,
+    SerialItemTransfer, SerialItemTransferItem,
+    DirectInventoryTransfer, DirectInventoryTransferItem
+)
+from modules.grpo.models import GRPODocument, GRPOItem, GRPOSerialNumber, GRPOBatchNumber, PurchaseDeliveryNote, GRPONonManagedItem
+from modules.multi_grn_creation.models import MultiGRNBatch, MultiGRNPOLink, MultiGRNLineSelection, MultiGRNBatchDetails, MultiGRNSerialDetails
+from modules.sales_delivery.models import DeliveryDocument, DeliveryItem
+import json
+
+
+def serialize_model(obj, exclude_fields=None):
+    """Serialize SQLAlchemy model to dictionary"""
+    if exclude_fields is None:
+        exclude_fields = []
+    
+    result = {}
+    for column in obj.__table__.columns:
+        if column.name in exclude_fields:
+            continue
+        value = getattr(obj, column.name)
+        if isinstance(value, datetime):
+            result[column.name] = value.isoformat()
+        else:
+            result[column.name] = value
+    return result
+
+
+def get_request_data():
+    """Get JSON data from request"""
+    return request.get_json() or {}
+
+
+def check_admin_permission():
+    """Check if current user is admin"""
+    if not current_user.is_authenticated:
+        return False
+    return current_user.role == 'admin'
+
+
+def check_permission(permission_name):
+    """Check if current user has specific permission"""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    return current_user.has_permission(permission_name)
+
+
+def check_user_access(user_id):
+    """Check if current user can access another user's data"""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    return current_user.id == user_id
+
+
+def check_resource_ownership(resource):
+    """Check if current user owns or can access a resource"""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    if hasattr(resource, 'user_id'):
+        return resource.user_id == current_user.id
+    return False
+
+
+def require_admin(f):
+    """Decorator to require admin role"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not check_admin_permission():
+            return jsonify({
+                'success': False,
+                'error': 'Admin permission required'
+            }), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_permission(permission_name):
+    """Decorator to require specific permission"""
+    from functools import wraps
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not check_permission(permission_name):
+                return jsonify({
+                    'success': False,
+                    'error': f'Permission required: {permission_name}'
+                }), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# ================================
+# User API Endpoints
+# ================================
+
+@app.route('/api/rest/users', methods=['GET'])
+@login_required
+@require_admin
+def api_get_users():
+    """GET list of all users - Admin only"""
+    try:
+        users = User.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(u, exclude_fields=['password_hash']) for u in users],
+            'count': len(users)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/users/<int:user_id>', methods=['GET'])
+@login_required
+def api_get_user(user_id):
+    """GET single user by ID - Admin or self only"""
+    try:
+        if not check_user_access(user_id):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only view your own user data'
+            }), 403
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        return jsonify({
+            'success': True,
+            'data': serialize_model(user, exclude_fields=['password_hash'])
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/users', methods=['POST'])
+@login_required
+@require_admin
+def api_create_user():
+    """POST create new user"""
+    try:
+        data = get_request_data()
+        from werkzeug.security import generate_password_hash
+        
+        user = User(
+            username=data.get('username'),
+            email=data.get('email'),
+            password_hash=generate_password_hash(data.get('password', 'changeme123')),
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            role=data.get('role', 'user'),
+            branch_id=data.get('branch_id'),
+            branch_name=data.get('branch_name'),
+            is_active=data.get('is_active', True)
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(user, exclude_fields=['password_hash']),
+            'message': 'User created successfully'
+        }), 201
+    except IntegrityError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'User already exists or validation error'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/users/<int:user_id>', methods=['PATCH'])
+@login_required
+def api_update_user(user_id):
+    """PATCH update user - Admin or self (limited fields)"""
+    try:
+        if not check_user_access(user_id):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only update your own user data'
+            }), 403
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        data = get_request_data()
+        
+        is_admin = check_admin_permission()
+        allowed_fields = ['first_name', 'last_name', 'email']
+        admin_only_fields = ['role', 'branch_id', 'branch_name', 'is_active', 'permissions']
+        
+        for key, value in data.items():
+            if key in ['id', 'password_hash', 'username']:
+                continue
+            if key in admin_only_fields and not is_admin:
+                continue
+            if key in allowed_fields or (is_admin and key in admin_only_fields):
+                if hasattr(user, key):
+                    setattr(user, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(user, exclude_fields=['password_hash']),
+            'message': 'User updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@require_admin
+def api_delete_user(user_id):
+    """DELETE user - Admin only"""
+    try:
+        if user_id == current_user.id:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot delete your own user account'
+            }), 400
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'User deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Inventory Transfer API Endpoints
+# ================================
+
+@app.route('/api/rest/inventory-transfers', methods=['GET'])
+@login_required
+@require_permission('inventory_transfer')
+def api_get_inventory_transfers():
+    """GET list of inventory transfers - Filtered by ownership"""
+    try:
+        if check_admin_permission():
+            transfers = InventoryTransfer.query.all()
+        else:
+            transfers = InventoryTransfer.query.filter_by(user_id=current_user.id).all()
+        
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(t) for t in transfers],
+            'count': len(transfers)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-transfers/<int:transfer_id>', methods=['GET'])
+@login_required
+@require_permission('inventory_transfer')
+def api_get_inventory_transfer(transfer_id):
+    """GET single inventory transfer with items - Owner or admin only"""
+    try:
+        transfer = InventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Transfer not found'}), 404
+        
+        if not check_resource_ownership(transfer):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only view your own transfers'
+            }), 403
+        
+        data = serialize_model(transfer)
+        data['items'] = [serialize_model(item) for item in transfer.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-transfers', methods=['POST'])
+@login_required
+@require_permission('inventory_transfer')
+def api_create_inventory_transfer():
+    """POST create new inventory transfer"""
+    try:
+        data = get_request_data()
+        
+        transfer = InventoryTransfer(
+            transfer_request_number=data.get('transfer_request_number'),
+            user_id=current_user.id,
+            from_warehouse=data.get('from_warehouse'),
+            to_warehouse=data.get('to_warehouse'),
+            status=data.get('status', 'draft')
+        )
+        db.session.add(transfer)
+        db.session.flush()
+        
+        for item_data in data.get('items', []):
+            item = InventoryTransferItem(
+                inventory_transfer_id=transfer.id,
+                item_code=item_data.get('item_code'),
+                item_name=item_data.get('item_name'),
+                quantity=item_data.get('quantity'),
+                requested_quantity=item_data.get('requested_quantity'),
+                remaining_quantity=item_data.get('remaining_quantity'),
+                unit_of_measure=item_data.get('unit_of_measure'),
+                from_bin=item_data.get('from_bin'),
+                to_bin=item_data.get('to_bin'),
+                batch_number=item_data.get('batch_number')
+            )
+            db.session.add(item)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Inventory transfer created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-transfers/<int:transfer_id>', methods=['PATCH'])
+@login_required
+@require_permission('inventory_transfer')
+def api_update_inventory_transfer(transfer_id):
+    """PATCH update inventory transfer - Owner or admin only"""
+    try:
+        transfer = InventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Transfer not found'}), 404
+        
+        if not check_resource_ownership(transfer):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only update your own transfers'
+            }), 403
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if key != 'items' and hasattr(transfer, key):
+                setattr(transfer, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Inventory transfer updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-transfers/<int:transfer_id>', methods=['DELETE'])
+@login_required
+@require_permission('inventory_transfer')
+def api_delete_inventory_transfer(transfer_id):
+    """DELETE inventory transfer - Owner or admin only"""
+    try:
+        transfer = InventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Transfer not found'}), 404
+        
+        if not check_resource_ownership(transfer):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only delete your own transfers'
+            }), 403
+        
+        db.session.delete(transfer)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Inventory transfer deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Pick List API Endpoints
+# ================================
+
+@app.route('/api/rest/pick-lists', methods=['GET'])
+@login_required
+@require_permission('pick_list')
+def api_get_pick_lists():
+    """GET list of pick lists - Filtered by ownership"""
+    try:
+        if check_admin_permission():
+            pick_lists = PickList.query.all()
+        else:
+            pick_lists = PickList.query.filter_by(user_id=current_user.id).all()
+        
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(pl) for pl in pick_lists],
+            'count': len(pick_lists)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/pick-lists/<int:pick_list_id>', methods=['GET'])
+@login_required
+@require_permission('pick_list')
+def api_get_pick_list(pick_list_id):
+    """GET single pick list with items - Owner or admin only"""
+    try:
+        pick_list = PickList.query.get(pick_list_id)
+        if not pick_list:
+            return jsonify({'success': False, 'error': 'Pick list not found'}), 404
+        
+        if not check_resource_ownership(pick_list):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only view your own pick lists'
+            }), 403
+        
+        data = serialize_model(pick_list)
+        data['items'] = [serialize_model(item) for item in pick_list.items]
+        data['lines'] = [serialize_model(line) for line in pick_list.lines]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/pick-lists', methods=['POST'])
+@login_required
+@require_permission('pick_list')
+def api_create_pick_list():
+    """POST create new pick list"""
+    try:
+        data = get_request_data()
+        
+        pick_list = PickList(
+            name=data.get('name'),
+            user_id=current_user.id,
+            status=data.get('status', 'pending'),
+            warehouse_code=data.get('warehouse_code'),
+            customer_code=data.get('customer_code'),
+            customer_name=data.get('customer_name'),
+            notes=data.get('notes')
+        )
+        db.session.add(pick_list)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(pick_list),
+            'message': 'Pick list created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/pick-lists/<int:pick_list_id>', methods=['PATCH'])
+@login_required
+@require_permission('pick_list')
+def api_update_pick_list(pick_list_id):
+    """PATCH update pick list - Owner or admin only"""
+    try:
+        pick_list = PickList.query.get(pick_list_id)
+        if not pick_list:
+            return jsonify({'success': False, 'error': 'Pick list not found'}), 404
+        
+        if not check_resource_ownership(pick_list):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only update your own pick lists'
+            }), 403
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(pick_list, key):
+                setattr(pick_list, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(pick_list),
+            'message': 'Pick list updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/pick-lists/<int:pick_list_id>', methods=['DELETE'])
+@login_required
+@require_permission('pick_list')
+def api_delete_pick_list(pick_list_id):
+    """DELETE pick list - Owner or admin only"""
+    try:
+        pick_list = PickList.query.get(pick_list_id)
+        if not pick_list:
+            return jsonify({'success': False, 'error': 'Pick list not found'}), 404
+        
+        if not check_resource_ownership(pick_list):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only delete your own pick lists'
+            }), 403
+        
+        db.session.delete(pick_list)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Pick list deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Inventory Count API Endpoints
+# ================================
+
+@app.route('/api/rest/inventory-counts', methods=['GET'])
+@login_required
+@require_permission('inventory_counting')
+def api_get_inventory_counts():
+    """GET list of inventory counts - Filtered by ownership"""
+    try:
+        if check_admin_permission():
+            counts = InventoryCount.query.all()
+        else:
+            counts = InventoryCount.query.filter_by(user_id=current_user.id).all()
+        
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(c) for c in counts],
+            'count': len(counts)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-counts/<int:count_id>', methods=['GET'])
+@login_required
+@require_permission('inventory_counting')
+def api_get_inventory_count(count_id):
+    """GET single inventory count with items - Owner or admin only"""
+    try:
+        count = InventoryCount.query.get(count_id)
+        if not count:
+            return jsonify({'success': False, 'error': 'Inventory count not found'}), 404
+        
+        if not check_resource_ownership(count):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only view your own inventory counts'
+            }), 403
+        
+        data = serialize_model(count)
+        data['items'] = [serialize_model(item) for item in count.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-counts', methods=['POST'])
+@login_required
+@require_permission('inventory_counting')
+def api_create_inventory_count():
+    """POST create new inventory count"""
+    try:
+        data = get_request_data()
+        
+        count = InventoryCount(
+            count_number=data.get('count_number'),
+            warehouse_code=data.get('warehouse_code'),
+            bin_location=data.get('bin_location'),
+            user_id=current_user.id,
+            status=data.get('status', 'assigned')
+        )
+        db.session.add(count)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(count),
+            'message': 'Inventory count created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-counts/<int:count_id>', methods=['PATCH'])
+@login_required
+@require_permission('inventory_counting')
+def api_update_inventory_count(count_id):
+    """PATCH update inventory count - Owner or admin only"""
+    try:
+        count = InventoryCount.query.get(count_id)
+        if not count:
+            return jsonify({'success': False, 'error': 'Inventory count not found'}), 404
+        
+        if not check_resource_ownership(count):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only update your own inventory counts'
+            }), 403
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(count, key):
+                setattr(count, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(count),
+            'message': 'Inventory count updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/inventory-counts/<int:count_id>', methods=['DELETE'])
+@login_required
+@require_permission('inventory_counting')
+def api_delete_inventory_count(count_id):
+    """DELETE inventory count - Owner or admin only"""
+    try:
+        count = InventoryCount.query.get(count_id)
+        if not count:
+            return jsonify({'success': False, 'error': 'Inventory count not found'}), 404
+        
+        if not check_resource_ownership(count):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only delete your own inventory counts'
+            }), 403
+        
+        db.session.delete(count)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Inventory count deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Bin Location API Endpoints
+# ================================
+
+@app.route('/api/rest/bin-locations', methods=['GET'])
+@login_required
+def api_get_bin_locations():
+    """GET list of bin locations"""
+    try:
+        bins = BinLocation.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(b) for b in bins],
+            'count': len(bins)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/bin-locations/<int:bin_id>', methods=['GET'])
+@login_required
+def api_get_bin_location(bin_id):
+    """GET single bin location with items"""
+    try:
+        bin_loc = BinLocation.query.get(bin_id)
+        if not bin_loc:
+            return jsonify({'success': False, 'error': 'Bin location not found'}), 404
+        
+        data = serialize_model(bin_loc)
+        data['items'] = [serialize_model(item) for item in bin_loc.bin_items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/bin-locations', methods=['POST'])
+@login_required
+@require_admin
+def api_create_bin_location():
+    """POST create new bin location"""
+    try:
+        data = get_request_data()
+        
+        bin_loc = BinLocation(
+            bin_code=data.get('bin_code'),
+            warehouse_code=data.get('warehouse_code'),
+            description=data.get('description'),
+            bin_name=data.get('bin_name'),
+            is_active=data.get('is_active', True)
+        )
+        db.session.add(bin_loc)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(bin_loc),
+            'message': 'Bin location created successfully'
+        }), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Bin code already exists'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/bin-locations/<int:bin_id>', methods=['PATCH'])
+@login_required
+@require_admin
+def api_update_bin_location(bin_id):
+    """PATCH update bin location"""
+    try:
+        bin_loc = BinLocation.query.get(bin_id)
+        if not bin_loc:
+            return jsonify({'success': False, 'error': 'Bin location not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(bin_loc, key):
+                setattr(bin_loc, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(bin_loc),
+            'message': 'Bin location updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/bin-locations/<int:bin_id>', methods=['DELETE'])
+@login_required
+@require_admin
+def api_delete_bin_location(bin_id):
+    """DELETE bin location"""
+    try:
+        bin_loc = BinLocation.query.get(bin_id)
+        if not bin_loc:
+            return jsonify({'success': False, 'error': 'Bin location not found'}), 404
+        
+        db.session.delete(bin_loc)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Bin location deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# GRPO Document API Endpoints
+# ================================
+
+@app.route('/api/rest/grpo-documents', methods=['GET'])
+@login_required
+@require_permission('grpo')
+def api_get_grpo_documents():
+    """GET list of GRPO documents - Filtered by ownership"""
+    try:
+        if check_admin_permission():
+            documents = GRPODocument.query.all()
+        else:
+            documents = GRPODocument.query.filter_by(user_id=current_user.id).all()
+        
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(d) for d in documents],
+            'count': len(documents)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-documents/<int:doc_id>', methods=['GET'])
+@login_required
+@require_permission('grpo')
+def api_get_grpo_document(doc_id):
+    """GET single GRPO document with items - Owner or admin only"""
+    try:
+        doc = GRPODocument.query.get(doc_id)
+        if not doc:
+            return jsonify({'success': False, 'error': 'GRPO document not found'}), 404
+        
+        if not check_resource_ownership(doc):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only view your own GRPO documents'
+            }), 403
+        
+        data = serialize_model(doc)
+        data['items'] = [serialize_model(item) for item in doc.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-documents', methods=['POST'])
+@login_required
+@require_permission('grpo')
+def api_create_grpo_document():
+    """POST create new GRPO document"""
+    try:
+        data = get_request_data()
+        
+        doc = GRPODocument(
+            po_number=data.get('po_number'),
+            doc_number=data.get('doc_number'),
+            supplier_code=data.get('supplier_code'),
+            supplier_name=data.get('supplier_name'),
+            warehouse_code=data.get('warehouse_code'),
+            user_id=current_user.id,
+            status=data.get('status', 'draft'),
+            notes=data.get('notes')
+        )
+        db.session.add(doc)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(doc),
+            'message': 'GRPO document created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-documents/<int:doc_id>', methods=['PATCH'])
+@login_required
+@require_permission('grpo')
+def api_update_grpo_document(doc_id):
+    """PATCH update GRPO document - Owner or admin only"""
+    try:
+        doc = GRPODocument.query.get(doc_id)
+        if not doc:
+            return jsonify({'success': False, 'error': 'GRPO document not found'}), 404
+        
+        if not check_resource_ownership(doc):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only update your own GRPO documents'
+            }), 403
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(doc, key):
+                setattr(doc, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(doc),
+            'message': 'GRPO document updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-documents/<int:doc_id>', methods=['DELETE'])
+@login_required
+@require_permission('grpo')
+def api_delete_grpo_document(doc_id):
+    """DELETE GRPO document - Owner or admin only"""
+    try:
+        doc = GRPODocument.query.get(doc_id)
+        if not doc:
+            return jsonify({'success': False, 'error': 'GRPO document not found'}), 404
+        
+        if not check_resource_ownership(doc):
+            return jsonify({
+                'success': False,
+                'error': 'Access denied: You can only delete your own GRPO documents'
+            }), 403
+        
+        db.session.delete(doc)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'GRPO document deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# GRPO Item API Endpoints
+# ================================
+
+@app.route('/api/rest/grpo-items', methods=['GET'])
+@login_required
+@require_permission('grpo')
+def api_get_grpo_items():
+    """GET list of GRPO items"""
+    try:
+        grpo_id = request.args.get('grpo_id')
+        if grpo_id:
+            items = GRPOItem.query.filter_by(grpo_id=grpo_id).all()
+        else:
+            items = GRPOItem.query.all()
+        
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(i) for i in items],
+            'count': len(items)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-items/<int:item_id>', methods=['GET'])
+@login_required
+@require_permission('grpo')
+def api_get_grpo_item(item_id):
+    """GET single GRPO item"""
+    try:
+        item = GRPOItem.query.get(item_id)
+        if not item:
+            return jsonify({'success': False, 'error': 'GRPO item not found'}), 404
+        
+        return jsonify({'success': True, 'data': serialize_model(item)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-items', methods=['POST'])
+@login_required
+@require_permission('grpo')
+def api_create_grpo_item():
+    """POST create new GRPO item"""
+    try:
+        data = get_request_data()
+        
+        item = GRPOItem(
+            grpo_id=data.get('grpo_id'),
+            item_code=data.get('item_code'),
+            item_name=data.get('item_name'),
+            quantity=data.get('quantity'),
+            unit_of_measure=data.get('unit_of_measure'),
+            warehouse_code=data.get('warehouse_code'),
+            bin_location=data.get('bin_location')
+        )
+        db.session.add(item)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(item),
+            'message': 'GRPO item created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-items/<int:item_id>', methods=['PATCH'])
+@login_required
+@require_permission('grpo')
+def api_update_grpo_item(item_id):
+    """PATCH update GRPO item"""
+    try:
+        item = GRPOItem.query.get(item_id)
+        if not item:
+            return jsonify({'success': False, 'error': 'GRPO item not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(item, key):
+                setattr(item, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(item),
+            'message': 'GRPO item updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/grpo-items/<int:item_id>', methods=['DELETE'])
+@login_required
+@require_permission('grpo')
+def api_delete_grpo_item(item_id):
+    """DELETE GRPO item"""
+    try:
+        item = GRPOItem.query.get(item_id)
+        if not item:
+            return jsonify({'success': False, 'error': 'GRPO item not found'}), 404
+        
+        db.session.delete(item)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'GRPO item deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Multi GRN Batch API Endpoints
+# ================================
+
+@app.route('/api/rest/multi-grn-batches', methods=['GET'])
+@login_required
+def api_get_multi_grn_batches():
+    """GET list of multi GRN batches"""
+    try:
+        batches = MultiGRNBatch.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(b) for b in batches],
+            'count': len(batches)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/multi-grn-batches/<int:batch_id>', methods=['GET'])
+@login_required
+def api_get_multi_grn_batch(batch_id):
+    """GET single multi GRN batch with PO links"""
+    try:
+        batch = MultiGRNBatch.query.get(batch_id)
+        if not batch:
+            return jsonify({'success': False, 'error': 'Multi GRN batch not found'}), 404
+        
+        data = serialize_model(batch)
+        data['po_links'] = [serialize_model(link) for link in batch.po_links]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/multi-grn-batches', methods=['POST'])
+@login_required
+def api_create_multi_grn_batch():
+    """POST create new multi GRN batch"""
+    try:
+        data = get_request_data()
+        
+        batch = MultiGRNBatch(
+            batch_number=data.get('batch_number'),
+            user_id=current_user.id,
+            customer_code=data.get('customer_code'),
+            customer_name=data.get('customer_name'),
+            status=data.get('status', 'draft')
+        )
+        db.session.add(batch)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(batch),
+            'message': 'Multi GRN batch created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/multi-grn-batches/<int:batch_id>', methods=['PATCH'])
+@login_required
+def api_update_multi_grn_batch(batch_id):
+    """PATCH update multi GRN batch"""
+    try:
+        batch = MultiGRNBatch.query.get(batch_id)
+        if not batch:
+            return jsonify({'success': False, 'error': 'Multi GRN batch not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(batch, key):
+                setattr(batch, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(batch),
+            'message': 'Multi GRN batch updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/multi-grn-batches/<int:batch_id>', methods=['DELETE'])
+@login_required
+def api_delete_multi_grn_batch(batch_id):
+    """DELETE multi GRN batch"""
+    try:
+        batch = MultiGRNBatch.query.get(batch_id)
+        if not batch:
+            return jsonify({'success': False, 'error': 'Multi GRN batch not found'}), 404
+        
+        db.session.delete(batch)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Multi GRN batch deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Delivery Document API Endpoints
+# ================================
+
+@app.route('/api/rest/delivery-documents', methods=['GET'])
+@login_required
+def api_get_delivery_documents():
+    """GET list of delivery documents"""
+    try:
+        deliveries = DeliveryDocument.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(d) for d in deliveries],
+            'count': len(deliveries)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/delivery-documents/<int:delivery_id>', methods=['GET'])
+@login_required
+def api_get_delivery_document(delivery_id):
+    """GET single delivery document with items"""
+    try:
+        delivery = DeliveryDocument.query.get(delivery_id)
+        if not delivery:
+            return jsonify({'success': False, 'error': 'Delivery document not found'}), 404
+        
+        data = serialize_model(delivery)
+        data['items'] = [serialize_model(item) for item in delivery.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/delivery-documents', methods=['POST'])
+@login_required
+def api_create_delivery_document():
+    """POST create new delivery document"""
+    try:
+        data = get_request_data()
+        
+        delivery = DeliveryDocument(
+            so_doc_entry=data.get('so_doc_entry'),
+            card_code=data.get('card_code'),
+            card_name=data.get('card_name'),
+            user_id=current_user.id,
+            status=data.get('status', 'draft')
+        )
+        db.session.add(delivery)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(delivery),
+            'message': 'Delivery document created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/delivery-documents/<int:delivery_id>', methods=['PATCH'])
+@login_required
+def api_update_delivery_document(delivery_id):
+    """PATCH update delivery document"""
+    try:
+        delivery = DeliveryDocument.query.get(delivery_id)
+        if not delivery:
+            return jsonify({'success': False, 'error': 'Delivery document not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(delivery, key):
+                setattr(delivery, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(delivery),
+            'message': 'Delivery document updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/delivery-documents/<int:delivery_id>', methods=['DELETE'])
+@login_required
+def api_delete_delivery_document(delivery_id):
+    """DELETE delivery document"""
+    try:
+        delivery = DeliveryDocument.query.get(delivery_id)
+        if not delivery:
+            return jsonify({'success': False, 'error': 'Delivery document not found'}), 404
+        
+        db.session.delete(delivery)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Delivery document deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Serial Number Transfer API Endpoints
+# ================================
+
+@app.route('/api/rest/serial-transfers', methods=['GET'])
+@login_required
+def api_get_serial_transfers():
+    """GET list of serial number transfers"""
+    try:
+        transfers = SerialNumberTransfer.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(t) for t in transfers],
+            'count': len(transfers)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/serial-transfers/<int:transfer_id>', methods=['GET'])
+@login_required
+def api_get_serial_transfer(transfer_id):
+    """GET single serial number transfer with items"""
+    try:
+        transfer = SerialNumberTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Serial transfer not found'}), 404
+        
+        data = serialize_model(transfer)
+        data['items'] = [serialize_model(item) for item in transfer.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/serial-transfers', methods=['POST'])
+@login_required
+def api_create_serial_transfer():
+    """POST create new serial number transfer"""
+    try:
+        data = get_request_data()
+        
+        transfer = SerialNumberTransfer(
+            transfer_number=data.get('transfer_number'),
+            user_id=current_user.id,
+            from_warehouse=data.get('from_warehouse'),
+            to_warehouse=data.get('to_warehouse'),
+            status=data.get('status', 'draft')
+        )
+        db.session.add(transfer)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Serial transfer created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/serial-transfers/<int:transfer_id>', methods=['PATCH'])
+@login_required
+def api_update_serial_transfer(transfer_id):
+    """PATCH update serial number transfer"""
+    try:
+        transfer = SerialNumberTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Serial transfer not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(transfer, key):
+                setattr(transfer, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Serial transfer updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/serial-transfers/<int:transfer_id>', methods=['DELETE'])
+@login_required
+def api_delete_serial_transfer(transfer_id):
+    """DELETE serial number transfer"""
+    try:
+        transfer = SerialNumberTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Serial transfer not found'}), 404
+        
+        db.session.delete(transfer)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Serial transfer deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# Direct Inventory Transfer API Endpoints
+# ================================
+
+@app.route('/api/rest/direct-transfers', methods=['GET'])
+@login_required
+def api_get_direct_transfers():
+    """GET list of direct inventory transfers"""
+    try:
+        transfers = DirectInventoryTransfer.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(t) for t in transfers],
+            'count': len(transfers)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/direct-transfers/<int:transfer_id>', methods=['GET'])
+@login_required
+def api_get_direct_transfer(transfer_id):
+    """GET single direct inventory transfer with items"""
+    try:
+        transfer = DirectInventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Direct transfer not found'}), 404
+        
+        data = serialize_model(transfer)
+        data['items'] = [serialize_model(item) for item in transfer.items]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/direct-transfers', methods=['POST'])
+@login_required
+def api_create_direct_transfer():
+    """POST create new direct inventory transfer"""
+    try:
+        data = get_request_data()
+        
+        transfer = DirectInventoryTransfer(
+            transfer_number=data.get('transfer_number'),
+            user_id=current_user.id,
+            from_warehouse=data.get('from_warehouse'),
+            to_warehouse=data.get('to_warehouse'),
+            status=data.get('status', 'draft')
+        )
+        db.session.add(transfer)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Direct transfer created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/direct-transfers/<int:transfer_id>', methods=['PATCH'])
+@login_required
+def api_update_direct_transfer(transfer_id):
+    """PATCH update direct inventory transfer"""
+    try:
+        transfer = DirectInventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Direct transfer not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(transfer, key):
+                setattr(transfer, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(transfer),
+            'message': 'Direct transfer updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/direct-transfers/<int:transfer_id>', methods=['DELETE'])
+@login_required
+def api_delete_direct_transfer(transfer_id):
+    """DELETE direct inventory transfer"""
+    try:
+        transfer = DirectInventoryTransfer.query.get(transfer_id)
+        if not transfer:
+            return jsonify({'success': False, 'error': 'Direct transfer not found'}), 404
+        
+        db.session.delete(transfer)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Direct transfer deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# QR Code Label API Endpoints
+# ================================
+
+@app.route('/api/rest/qr-labels', methods=['GET'])
+@login_required
+def api_get_qr_labels():
+    """GET list of QR code labels"""
+    try:
+        labels = QRCodeLabel.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(l) for l in labels],
+            'count': len(labels)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/qr-labels/<int:label_id>', methods=['GET'])
+@login_required
+def api_get_qr_label(label_id):
+    """GET single QR code label"""
+    try:
+        label = QRCodeLabel.query.get(label_id)
+        if not label:
+            return jsonify({'success': False, 'error': 'QR label not found'}), 404
+        
+        return jsonify({'success': True, 'data': serialize_model(label)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/qr-labels', methods=['POST'])
+@login_required
+def api_create_qr_label():
+    """POST create new QR code label"""
+    try:
+        data = get_request_data()
+        
+        label = QRCodeLabel(
+            label_type=data.get('label_type'),
+            item_code=data.get('item_code'),
+            item_name=data.get('item_name'),
+            qr_content=data.get('qr_content'),
+            user_id=current_user.id
+        )
+        db.session.add(label)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': serialize_model(label),
+            'message': 'QR label created successfully'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/qr-labels/<int:label_id>', methods=['PATCH'])
+@login_required
+def api_update_qr_label(label_id):
+    """PATCH update QR code label"""
+    try:
+        label = QRCodeLabel.query.get(label_id)
+        if not label:
+            return jsonify({'success': False, 'error': 'QR label not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(label, key):
+                setattr(label, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(label),
+            'message': 'QR label updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/qr-labels/<int:label_id>', methods=['DELETE'])
+@login_required
+def api_delete_qr_label(label_id):
+    """DELETE QR code label"""
+    try:
+        label = QRCodeLabel.query.get(label_id)
+        if not label:
+            return jsonify({'success': False, 'error': 'QR label not found'}), 404
+        
+        db.session.delete(label)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'QR label deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================================
+# SAP Inventory Count API Endpoints
+# ================================
+
+@app.route('/api/rest/sap-inventory-counts', methods=['GET'])
+@login_required
+def api_get_sap_inventory_counts():
+    """GET list of SAP inventory counts"""
+    try:
+        counts = SAPInventoryCount.query.all()
+        return jsonify({
+            'success': True,
+            'data': [serialize_model(c) for c in counts],
+            'count': len(counts)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/sap-inventory-counts/<int:count_id>', methods=['GET'])
+@login_required
+def api_get_sap_inventory_count(count_id):
+    """GET single SAP inventory count with lines"""
+    try:
+        count = SAPInventoryCount.query.get(count_id)
+        if not count:
+            return jsonify({'success': False, 'error': 'SAP inventory count not found'}), 404
+        
+        data = serialize_model(count)
+        data['lines'] = [serialize_model(line) for line in count.lines]
+        
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/rest/sap-inventory-counts/<int:count_id>', methods=['PATCH'])
+@login_required
+def api_update_sap_inventory_count(count_id):
+    """PATCH update SAP inventory count"""
+    try:
+        count = SAPInventoryCount.query.get(count_id)
+        if not count:
+            return jsonify({'success': False, 'error': 'SAP inventory count not found'}), 404
+        
+        data = get_request_data()
+        for key, value in data.items():
+            if hasattr(count, key):
+                setattr(count, key, value)
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': serialize_model(count),
+            'message': 'SAP inventory count updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500

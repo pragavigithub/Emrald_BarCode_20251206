@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Inventory Transfer - WMS{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('inventory_transfer') }}">Inventory Transfer</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('inventory_transfer_detail', transfer_id=transfer.id) }}">Transfer #{{ transfer.id }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>
+                <i data-feather="edit-2"></i> Edit Inventory Transfer
+            </h1>
+            <a href="{{ url_for('inventory_transfer_detail', transfer_id=transfer.id) }}" class="btn btn-outline-secondary">
+                <i data-feather="arrow-left"></i> Back to Transfer
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Transfer Document Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('edit_inventory_transfer', transfer_id=transfer.id) }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="transfer_id" class="form-label">Transfer ID</label>
+                            <input type="text" class="form-control" id="transfer_id" value="{{ transfer.id }}" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="status" class="form-label">Status</label>
+                            <input type="text" class="form-control" id="status" value="{{ transfer.status | capitalize }}" readonly disabled>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="transfer_request_number" class="form-label">SAP Request Number <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="transfer_request_number" name="transfer_request_number" 
+                                   value="{{ transfer.transfer_request_number }}" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="validateRequestNumber()">
+                                <i data-feather="check-circle"></i> Validate
+                            </button>
+                        </div>
+                        <div id="validationResult" class="mt-2"></div>
+                        <small class="form-text text-muted">Enter the SAP B1 Transfer Request document number</small>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="from_warehouse" class="form-label">From Warehouse</label>
+                            <input type="text" class="form-control" id="from_warehouse" value="{{ transfer.from_warehouse or 'N/A' }}" readonly disabled>
+                            <small class="form-text text-muted">Automatically populated from SAP</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="to_warehouse" class="form-label">To Warehouse</label>
+                            <input type="text" class="form-control" id="to_warehouse" value="{{ transfer.to_warehouse or 'N/A' }}" readonly disabled>
+                            <small class="form-text text-muted">Automatically populated from SAP</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="created_at" class="form-label">Created</label>
+                            <input type="text" class="form-control" id="created_at" 
+                                   value="{{ transfer.created_at.strftime('%Y-%m-%d %H:%M') }}" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="created_by" class="form-label">Created By</label>
+                            <input type="text" class="form-control" id="created_by" 
+                                   value="{{ transfer.user.username if transfer.user else 'Unknown' }}" readonly disabled>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('inventory_transfer_detail', transfer_id=transfer.id) }}" class="btn btn-secondary">
+                            <i data-feather="x"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i data-feather="info"></i> Transfer Information</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Items in Transfer:</strong> {{ transfer.items | length }}</p>
+                {% if transfer.items %}
+                <ul class="list-unstyled small mb-0">
+                    {% for item in transfer.items[:5] %}
+                    <li class="mb-1">
+                        <i data-feather="package" class="small"></i>
+                        {{ item.item_code }} - Qty: {{ item.quantity }}
+                    </li>
+                    {% endfor %}
+                    {% if transfer.items | length > 5 %}
+                    <li class="text-muted">... and {{ transfer.items | length - 5 }} more items</li>
+                    {% endif %}
+                </ul>
+                {% else %}
+                <p class="text-muted small mb-0">No items added yet</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-warning">
+                <h6 class="mb-0"><i data-feather="alert-triangle"></i> Warning</h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-0">
+                    Changing the SAP Request Number will update the warehouse information. 
+                    Existing items will remain in the transfer but may need to be reviewed 
+                    if the new request has different items.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function validateRequestNumber() {
+    const requestNumber = document.getElementById('transfer_request_number').value.trim();
+    const resultDiv = document.getElementById('validationResult');
+    
+    if (!requestNumber) {
+        resultDiv.innerHTML = '<div class="alert alert-warning">Please enter a request number</div>';
+        return;
+    }
+    
+    resultDiv.innerHTML = '<div class="text-muted"><i data-feather="loader" class="spin"></i> Validating...</div>';
+    if (typeof feather !== 'undefined') feather.replace();
+    
+    try {
+        const response = await fetch(`/api/validate_transfer_request/${requestNumber}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const docData = data.data;
+            const statusBadge = docData.DocumentStatus === 'bost_Open' 
+                ? '<span class="badge bg-success">Open</span>' 
+                : '<span class="badge bg-danger">Closed</span>';
+            
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>Valid Request Found</strong><br>
+                    <small>
+                        From: ${docData.FromWarehouse} → To: ${docData.ToWarehouse}<br>
+                        Items: ${docData.LineCount} | Status: ${statusBadge}
+                    </small>
+                </div>
+            `;
+            
+            // Update warehouse fields
+            document.getElementById('from_warehouse').value = docData.FromWarehouse || 'N/A';
+            document.getElementById('to_warehouse').value = docData.ToWarehouse || 'N/A';
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Error validating request: ${error.message}</div>`;
+    }
+    
+    if (typeof feather !== 'undefined') feather.replace();
+}
+</script>
+{% endblock %}
