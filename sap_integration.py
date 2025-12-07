@@ -1633,51 +1633,215 @@ class SAPIntegration:
         """Return mock batch data for offline testing"""
         return []
 
+    # def create_inventory_transfer(self, transfer_document):
+    #     """Create Stock Transfer in SAP B1 with correct JSON structure"""
+    #     if not self.ensure_logged_in():
+    #         logging.warning(
+    #             "SAP B1 not available, simulating transfer creation for testing"
+    #         )
+    #         return {
+    #             'success': True,
+    #             'document_number': f'ST-{transfer_document.id}'
+    #         }
+    #
+    #     url = f"{self.base_url}/b1s/v1/StockTransfers"
+    #
+    #     # Get transfer request data for BaseEntry reference
+    #     transfer_request_data = self.get_inventory_transfer_request(
+    #         transfer_document.transfer_request_number)
+    #     base_entry = transfer_request_data.get(
+    #         'DocEntry') if transfer_request_data else None
+    #
+    #     # Build stock transfer lines with enhanced structure
+    #     stock_transfer_lines = []
+    #     for index, item in enumerate(transfer_document.items):
+    #         # Get item details for accurate UoM and pricing
+    #         item_details = self.get_item_details(item.item_code)
+    #
+    #         # Use actual item UoM if available
+    #         actual_uom = item_details.get(
+    #             'InventoryUoM',
+    #             item.unit_of_measure) if item_details else item.unit_of_measure
+    #
+    #         # Find corresponding line in transfer request for price info
+    #         price = 0
+    #         unit_price = 0
+    #         uom_entry = None
+    #         base_line = index
+    #
+    #         if transfer_request_data and 'StockTransferLines' in transfer_request_data:
+    #             for req_line in transfer_request_data['StockTransferLines']:
+    #                 if req_line.get('ItemCode') == item.item_code:
+    #                     price = req_line.get('Price', 0)
+    #                     unit_price = req_line.get('UnitPrice', price)
+    #                     uom_entry = req_line.get('UoMEntry')
+    #                     base_line = req_line.get('LineNum', index)
+    #                     break
+    #
+    #         line = {
+    #             "LineNum": index,
+    #             "ItemCode": item.item_code,
+    #             "Quantity": float(item.quantity),
+    #             "WarehouseCode": transfer_document.to_warehouse,
+    #             "FromWarehouseCode": transfer_document.from_warehouse,
+    #             "UoMCode": actual_uom
+    #         }
+    #
+    #         # Add BaseEntry and BaseLine if available (reference to transfer request)
+    #         if base_entry:
+    #             line["BaseEntry"] = base_entry
+    #             line["BaseLine"] = base_line
+    #             line["BaseType"] = "1250000001"  # oInventoryTransferRequest
+    #
+    #         # Add pricing if available
+    #         if price > 0:
+    #             line["Price"] = price
+    #             line["UnitPrice"] = unit_price
+    #
+    #         # Add UoMEntry if available
+    #         if uom_entry:
+    #             line["UoMEntry"] = uom_entry
+    #         serialManged = item.serial_manged;
+    #         batchManaged = item.batch_manage;
+    #         if serialManged == 'Y':
+    #          if batchManaged == "Y" :
+    #
+    #             #if the batchMnaged == y then BatchNumber are Required or else BatchMnaged Not Required
+    #         # Add batch numbers if present - support multiple batches from QR scanning
+    #           if hasattr(item, 'scanned_batches') and item.scanned_batches:
+    #             try:
+    #                 batches_data = json.loads(item.scanned_batches)
+    #                 if batches_data and isinstance(batches_data, list):
+    #                     batch_numbers = []
+    #                     for batch_entry in batches_data:
+    #                         batch_num = batch_entry.get('batch_number', '')
+    #                         batch_qty = float(batch_entry.get('quantity', 0))
+    #                         if batch_num and batch_num != 'N/A' and batch_qty > 0:
+    #                             batch_numbers.append({
+    #                                 "BaseLineNumber": index,
+    #                                 "BatchNumber": batch_num,
+    #                                 "Quantity": batch_qty
+    #                             })
+    #                     if batch_numbers:
+    #                         line["BatchNumbers"] = batch_numbers
+    #                         logging.info(f"📦 Added {len(batch_numbers)} batch entries for item {item.item_code}")
+    #             except (json.JSONDecodeError, TypeError) as e:
+    #                 logging.warning(f"⚠️ Failed to parse scanned_batches for {item.item_code}: {e}")
+    #                 if item.batch_number:
+    #                     line["BatchNumbers"] = [{
+    #                         "BaseLineNumber": index,
+    #                         "BatchNumber": item.batch_number,
+    #                         "Quantity": float(item.quantity)
+    #                     }]
+    #         elif item.batch_number:
+    #             line["BatchNumbers"] = [{
+    #                 "BaseLineNumber": index,
+    #                 "BatchNumber": item.batch_number,
+    #                 "Quantity": float(item.quantity)
+    #             }]
+    #
+    #         # Add bin allocation if bins are specified
+    #         if item.from_bin or item.to_bin:
+    #             line["StockTransferLinesBinAllocations"] = []
+    #
+    #             if item.from_bin:
+    #                 line["StockTransferLinesBinAllocations"].append({
+    #                     "BinActionType": "batFromWarehouse",
+    #                     "BinAbsEntry": self.get_bin_abs_entry(item.from_bin, transfer_document.from_warehouse),
+    #                     "Quantity": float(item.quantity),
+    #                     "SerialAndBatchNumbersBaseLine": 0
+    #                 })
+    #
+    #             if item.to_bin:
+    #                 line["StockTransferLinesBinAllocations"].append({
+    #                     "BinActionType": "batToWarehouse",
+    #                     "BinAbsEntry": self.get_bin_abs_entry(item.to_bin, transfer_document.to_warehouse),
+    #                     "Quantity": float(item.quantity),
+    #                     "SerialAndBatchNumbersBaseLine": 0
+    #                 })
+    #
+    #         stock_transfer_lines.append(line)
+    #
+    #     transfer_data = {
+    #         "DocDate": datetime.now().strftime('%Y-%m-%d'),
+    #         "Comments":
+    #         f"QC Approved WMS Transfer {transfer_document.id} by {transfer_document.qc_approver.username if transfer_document.qc_approver else 'System'}",
+    #         "FromWarehouse": transfer_document.from_warehouse,
+    #         "ToWarehouse": transfer_document.to_warehouse,
+    #         "StockTransferLines": stock_transfer_lines
+    #     }
+    #     print(f"transfer_item (repr) --> {repr(transfer_data)}")
+    #     # Log the JSON payload for debugging
+    #     logging.info(f"📤 Sending stock transfer to SAP B1:")
+    #     logging.info(f"JSON payload: {json.dumps(transfer_data, indent=2)}")
+    #
+    #     try:
+    #         response = self.session.post(url, json=transfer_data)
+    #         logging.info(f"📡 SAP B1 response status: {response.status_code}")
+    #
+    #         if response.status_code == 201:
+    #             result = response.json()
+    #             logging.info(
+    #                 f"✅ Stock transfer created successfully: {result.get('DocNum')}"
+    #             )
+    #             return {
+    #                 'success': True,
+    #                 'document_number': result.get('DocNum')
+    #             }
+    #         else:
+    #             error_msg = f"SAP B1 error: {response.text}"
+    #             logging.error(
+    #                 f"❌ Failed to create stock transfer: {error_msg}")
+    #             return {'success': False, 'error': error_msg}
+    #     except Exception as e:
+    #         logging.error(
+    #             f"❌ Error creating stock transfer in SAP B1: {str(e)}")
+    #         return {'success': False, 'error': str(e)}
     def create_inventory_transfer(self, transfer_document):
         """Create Stock Transfer in SAP B1 with correct JSON structure"""
+
         if not self.ensure_logged_in():
-            logging.warning(
-                "SAP B1 not available, simulating transfer creation for testing"
-            )
-            return {
-                'success': True,
-                'document_number': f'ST-{transfer_document.id}'
-            }
+            logging.warning("SAP login failed. Simulating transfer.")
+            return {'success': True, 'document_number': f'ST-{transfer_document.id}'}
 
         url = f"{self.base_url}/b1s/v1/StockTransfers"
 
-        # Get transfer request data for BaseEntry reference
+        # Fetch Transfer Request for BaseEntry / BaseLine reference
         transfer_request_data = self.get_inventory_transfer_request(
-            transfer_document.transfer_request_number)
-        base_entry = transfer_request_data.get(
-            'DocEntry') if transfer_request_data else None
+            transfer_document.transfer_request_number
+        )
+        base_entry = transfer_request_data.get('DocEntry') if transfer_request_data else None
 
-        # Build stock transfer lines with enhanced structure
         stock_transfer_lines = []
+
+        # -------------------------------------------------------
+        # LOOP ALL TRANSFER ITEMS
+        # -------------------------------------------------------
         for index, item in enumerate(transfer_document.items):
-            # Get item details for accurate UoM and pricing
+
+            # Fetch item master data
             item_details = self.get_item_details(item.item_code)
+            actual_uom = item_details.get("InventoryUoM",
+                                          item.unit_of_measure) if item_details else item.unit_of_measure
 
-            # Use actual item UoM if available
-            actual_uom = item_details.get(
-                'InventoryUoM',
-                item.unit_of_measure) if item_details else item.unit_of_measure
-
-            # Find corresponding line in transfer request for price info
+            # Determine BaseLine from Transfer Request
+            base_line = index
             price = 0
             unit_price = 0
             uom_entry = None
-            base_line = index
 
             if transfer_request_data and 'StockTransferLines' in transfer_request_data:
                 for req_line in transfer_request_data['StockTransferLines']:
-                    if req_line.get('ItemCode') == item.item_code:
-                        price = req_line.get('Price', 0)
-                        unit_price = req_line.get('UnitPrice', price)
-                        uom_entry = req_line.get('UoMEntry')
-                        base_line = req_line.get('LineNum', index)
+                    if req_line.get("ItemCode") == item.item_code:
+                        base_line = req_line.get("LineNum", index)
+                        price = req_line.get("Price", 0)
+                        unit_price = req_line.get("UnitPrice", price)
+                        uom_entry = req_line.get("UoMEntry")
                         break
 
+            # -------------------------------------------------------
+            # BASE STOCK TRANSFER LINE
+            # -------------------------------------------------------
             line = {
                 "LineNum": index,
                 "ItemCode": item.item_code,
@@ -1687,55 +1851,92 @@ class SAPIntegration:
                 "UoMCode": actual_uom
             }
 
-            # Add BaseEntry and BaseLine if available (reference to transfer request)
+            # Add BaseEntry reference
             if base_entry:
                 line["BaseEntry"] = base_entry
                 line["BaseLine"] = base_line
-                line["BaseType"] = "1250000001"  # oInventoryTransferRequest
+                line["BaseType"] = "1250000001"
 
-            # Add pricing if available
+            # Pricing (optional)
             if price > 0:
                 line["Price"] = price
                 line["UnitPrice"] = unit_price
-
-            # Add UoMEntry if available
             if uom_entry:
                 line["UoMEntry"] = uom_entry
 
-            # Add batch numbers if present - support multiple batches from QR scanning
-            if hasattr(item, 'scanned_batches') and item.scanned_batches:
-                try:
-                    batches_data = json.loads(item.scanned_batches)
-                    if batches_data and isinstance(batches_data, list):
-                        batch_numbers = []
-                        for batch_entry in batches_data:
-                            batch_num = batch_entry.get('batch_number', '')
-                            batch_qty = float(batch_entry.get('quantity', 0))
-                            if batch_num and batch_num != 'N/A' and batch_qty > 0:
-                                batch_numbers.append({
-                                    "BaseLineNumber": index,
-                                    "BatchNumber": batch_num,
-                                    "Quantity": batch_qty
-                                })
-                        if batch_numbers:
-                            line["BatchNumbers"] = batch_numbers
-                            logging.info(f"📦 Added {len(batch_numbers)} batch entries for item {item.item_code}")
-                except (json.JSONDecodeError, TypeError) as e:
-                    logging.warning(f"⚠️ Failed to parse scanned_batches for {item.item_code}: {e}")
-                    if item.batch_number:
-                        line["BatchNumbers"] = [{
-                            "BaseLineNumber": index,
-                            "BatchNumber": item.batch_number,
-                            "Quantity": float(item.quantity)
-                        }]
-            elif item.batch_number:
-                line["BatchNumbers"] = [{
-                    "BaseLineNumber": index,
-                    "BatchNumber": item.batch_number,
-                    "Quantity": float(item.quantity)
-                }]
+            # -------------------------------------------------------
+            # BATCH / SERIAL MANAGEMENT LOGIC
+            # -------------------------------------------------------
+            serial_managed = (item.serial_manged == "Y")
+            batch_managed = (item.batch_manage == "Y")
 
-            # Add bin allocation if bins are specified
+            # 🟦 BATCH-MANAGED ITEM
+            if batch_managed:
+                line["BatchNumbers"] = []
+
+                # Case A: multiple scanned batches JSON
+                if item.scanned_batches:
+                    try:
+                        batches_list = json.loads(item.scanned_batches)
+                        if isinstance(batches_list, list):
+                            for b in batches_list:
+                                bn = b.get("batch_number")
+                                qty = float(b.get("quantity", 0))
+                                if bn and qty > 0:
+                                    line["BatchNumbers"].append({
+                                        "BatchNumber": bn,
+                                        "Quantity": qty
+                                    })
+                    except Exception as e:
+                        logging.error(f"❌ Invalid scanned_batches for {item.item_code}: {e}")
+
+                # Case B: fallback to single batch number
+                elif item.batch_number:
+                    line["BatchNumbers"].append({
+                        "BatchNumber": item.batch_number,
+                        "Quantity": float(item.quantity)
+                    })
+
+                # Case C: SAP requires batch numbers → ERROR
+                if not line["BatchNumbers"]:
+                    raise ValueError(f"❌ BatchNumber REQUIRED for batch-managed item {item.item_code}")
+
+            # 🟩 SERIAL-MANAGED ITEM
+            elif serial_managed:
+                line["SerialNumbers"] = []
+
+                # Case A: scanned serials in JSON (using same field)
+                if item.scanned_batches:
+                    try:
+                        serial_list = json.loads(item.scanned_batches)
+                        if isinstance(serial_list, list):
+                            for s in serial_list:
+                                sn = s.get("serial_number")
+                                if sn:
+                                    line["SerialNumbers"].append({
+                                        "InternalSerialNumber": sn
+                                    })
+                    except Exception as e:
+                        logging.error(f"❌ Invalid serial list for {item.item_code}: {e}")
+
+                # Case B: fallback single serial
+                elif item.batch_number:
+                    line["SerialNumbers"].append({
+                        "InternalSerialNumber": item.batch_number
+                    })
+
+                # Must contain serials
+                if not line["SerialNumbers"]:
+                    raise ValueError(f"❌ SerialNumber REQUIRED for serial-managed item {item.item_code}")
+
+            # 🟥 NON-BATCH / NON-SERIAL → remove keys
+            else:
+                line.pop("BatchNumbers", None)
+                line.pop("SerialNumbers", None)
+
+            # -------------------------------------------------------
+            # BIN ALLOCATIONS
+            # -------------------------------------------------------
             if item.from_bin or item.to_bin:
                 line["StockTransferLinesBinAllocations"] = []
 
@@ -1757,40 +1958,34 @@ class SAPIntegration:
 
             stock_transfer_lines.append(line)
 
+        # -------------------------------------------------------
+        # FINAL PAYLOAD
+        # -------------------------------------------------------
         transfer_data = {
             "DocDate": datetime.now().strftime('%Y-%m-%d'),
-            "Comments":
-            f"QC Approved WMS Transfer {transfer_document.id} by {transfer_document.qc_approver.username if transfer_document.qc_approver else 'System'}",
+            "Comments": f"QC Approved WMS Transfer {transfer_document.id} by {transfer_document.qc_approver.username if transfer_document.qc_approver else 'System'}",
             "FromWarehouse": transfer_document.from_warehouse,
             "ToWarehouse": transfer_document.to_warehouse,
             "StockTransferLines": stock_transfer_lines
         }
-        print(f"transfer_item (repr) --> {repr(transfer_data)}")
-        # Log the JSON payload for debugging
-        logging.info(f"📤 Sending stock transfer to SAP B1:")
-        logging.info(f"JSON payload: {json.dumps(transfer_data, indent=2)}")
 
+        logging.info("📤 Final Payload Sent to SAP:")
+        logging.info(json.dumps(transfer_data, indent=2))
+
+        # -------------------------------------------------------
+        # SEND TO SAP
+        # -------------------------------------------------------
         try:
             response = self.session.post(url, json=transfer_data)
-            logging.info(f"📡 SAP B1 response status: {response.status_code}")
+            logging.info(f"SAP Response Status: {response.status_code}")
 
             if response.status_code == 201:
                 result = response.json()
-                logging.info(
-                    f"✅ Stock transfer created successfully: {result.get('DocNum')}"
-                )
-                return {
-                    'success': True,
-                    'document_number': result.get('DocNum')
-                }
-            else:
-                error_msg = f"SAP B1 error: {response.text}"
-                logging.error(
-                    f"❌ Failed to create stock transfer: {error_msg}")
-                return {'success': False, 'error': error_msg}
+                return {'success': True, 'document_number': result.get("DocNum")}
+
+            return {'success': False, 'error': response.text}
+
         except Exception as e:
-            logging.error(
-                f"❌ Error creating stock transfer in SAP B1: {str(e)}")
             return {'success': False, 'error': str(e)}
 
     def create_serial_item_stock_transfer(self, transfer_document):

@@ -2476,7 +2476,7 @@ def api_scan_qr_label():
             transfer_id=transfer_id,
             item_code=item_code
         ).all()
-        print("scanned_packs-->"+scanned_packs)
+        print("scanned_packs-->",scanned_packs)
         pack_qty = parsed_data.get('qty', 0)
         current_total = sum(pack.qty for pack in scanned_packs)
         new_total = current_total + pack_qty
@@ -2519,57 +2519,6 @@ def api_scan_qr_label():
 
         db.session.add(new_scan)
         db.session.commit()
-
-
-        # if isinstance(qr_data, dict):
-        #     parsed_json = qr_data
-        # else:
-        #     parsed_json = json.loads(qr_data)
-        #     # SAP Item Lookup
-        #     sap = SAPIntegration()
-        #     item_details = sap.get_item_details(item_code)
-        #     actual_uom = item_details.get("InventoryUoM") if item_details else None
-        #     docDetails = InventoryTransfer.query.filter_by(
-        #         id=transfer_id
-        #     ).first()
-        #     # -----------------------------------------------------------
-        #     # 🔥 NEW: CHECK GRN ALREADY EXISTS IN THIS TRANSFER
-        #     # -----------------------------------------------------------
-        #     if grn_id:
-        #         exists = InventoryTransferItem.query.filter_by(
-        #             inventory_transfer_id=transfer.id,
-        #             grn_id=grn_id
-        #         ).first()
-        #
-        #         if exists:
-        #             return jsonify({
-        #                 "success": False,
-        #                 "message": f"GRN {grn_id} already exists in this transfer!",
-        #                 "duplicate_grn": True,
-        #                 "grn_id": grn_id
-        #             }), 400
-        #     # -----------------------------------------------------------
-        # new_item = InventoryTransferItem(
-        #     inventory_transfer_id=transfer.id,
-        #     item_code=item_code,
-        #     item_name=item_details.get("ItemName") or "",
-        #     quantity=pack_qty,
-        #     grn_id=grn_id,  # 🔥 Stored here
-        #     requested_quantity=requested_qty,
-        #     transferred_quantity=pack_qty,
-        #     remaining_quantity=pack_qty,
-        #     unit_of_measure=actual_uom or "Manual",
-        #     from_warehouse_code=docDetails.from_warehouse,
-        #     #to_warehouse_code=to_whs,
-        #     from_bin_location=parsed_json.get('bin', ''),
-        #     #to_bin_location=to_bin,
-        #     #to_bin=to_bin,
-        #     from_bin=parsed_json.get('bin', ''),
-        #     batch_number=parsed_json.get('batch'),
-        # )
-        #
-        # db.session.add(new_item)
-        # db.session.commit()
 
         # ==== STEP 6: Prepare response ====
         all_scans = TransferScanState.query.filter_by(
