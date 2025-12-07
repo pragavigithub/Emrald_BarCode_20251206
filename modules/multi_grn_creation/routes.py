@@ -606,18 +606,17 @@ def create_step3_select_lines(batch_id):
         po_details = []
         
         for po_link in batch.po_links:
-            result = sap_service.fetch_open_purchase_orders_by_name(batch.customer_name)
-            logging.info(f"📊 Step 3 - Fetched PO details for {batch.customer_name}: Success={result.get('success')}")
+            # Use $crossjoin method to fetch PO lines by DocEntry
+            result = sap_service.fetch_po_lines_by_docentry(po_link.po_doc_entry)
+            logging.info(f"📊 Step 3 - Fetched PO lines using $crossjoin for DocEntry {po_link.po_doc_entry}: Success={result.get('success')}")
             
             # Handle both success/failure cases safely
             if result.get('success'):
-                for po in result.get('purchase_orders', []):
-                    if po['DocEntry'] == po_link.po_doc_entry:
-                        po_details.append({
-                            'po_link': po_link,
-                            'lines': po.get('OpenLines', [])
-                        })
-                        break
+                po_data = result.get('purchase_order', {})
+                po_details.append({
+                    'po_link': po_link,
+                    'lines': po_data.get('OpenLines', [])
+                })
             else:
                 # SAP login failed - show error to user
                 error_msg = result.get('error', 'Failed to fetch Purchase Order details from SAP')
