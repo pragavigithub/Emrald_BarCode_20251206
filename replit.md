@@ -42,6 +42,9 @@ The system is built on a Flask web application backend, utilizing Jinja2 for ser
 *   **Quality Control Dashboard:** Provides a unified oversight for quality approval workflows across Multi GRN, Direct Transfer, and Sales Delivery modules, with SAP B1 posting integration upon approval.
 *   **SO Against Invoice Module:** Allows creating invoices against existing Sales Orders with SAP B1 integration, including SO series selection, SO number validation, and item validation.
 
+## Recent Changes (December 8, 2025)
+*   **Multi GRN Workflow Optimization - Skip Step 2:** Modified the Multi GRN creation workflow to skip the redundant PO selection screen (Step 2). Now when users select CardCode and POs in the modal, clicking "Next: Select Lines" goes directly to Step 3 (Line Selection) instead of showing another PO selection page. PO links are now added directly in the `create_grn_from_modal` route, and line items are fetched using the SAP B1 $crossjoin method for efficient DocEntry-based line number selection.
+
 ## Recent Changes (December 6, 2025)
 *   **Multi GRN CardCode Dropdown Fix:** Enhanced SAP B1 data fetching methods with mock data fallback for offline testing:
     - `fetch_customers_from_open_pos()` - Now uses mock data when SAP is unavailable

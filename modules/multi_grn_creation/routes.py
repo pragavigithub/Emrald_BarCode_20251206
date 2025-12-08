@@ -1777,7 +1777,8 @@ def api_customers_from_open_pos():
 def create_grn_from_modal():
     """
     Handle the new Multi GRN creation flow from the modal popup.
-    Creates a GRN batch and redirects to step 2 (line item selection)
+    Creates a GRN batch, adds PO links directly, and redirects to step 3 (line selection).
+    This skips Step 2 entirely since POs are already selected in the modal.
     """
     import json as json_module
     from flask import session
@@ -1817,14 +1818,7 @@ def create_grn_from_modal():
         flash('Please select a customer and at least one Purchase Order', 'warning')
         return redirect(url_for('multi_grn.index'))
     
-    # Store full PO summaries in session for step 2 hydration
-    session['multi_grn_customer_code'] = customer_code
-    session['multi_grn_customer_name'] = customer_name
-    session['multi_grn_series_id'] = series_id
-    session['multi_grn_series_name'] = series_name
-    session['multi_grn_selected_po_summaries'] = selected_po_summaries
-    
-    # Create a new GRN batch
+    # Create a new GRN batch and add PO links directly (skipping Step 2)
     try:
         # Cast series_id to int or None to match model's expected type
         series_id_int = int(series_id) if series_id and series_id.isdigit() else None
@@ -1841,15 +1835,57 @@ def create_grn_from_modal():
             created_by=current_user.username
         )
         db.session.add(new_batch)
-        db.session.commit()
+        db.session.flush()  # Get the batch ID before adding PO links
         
         logging.info(f"✅ Created new GRN batch: {new_batch.batch_number} for customer {customer_code}")
         
-        # Store batch_id in session
-        session['multi_grn_batch_id'] = new_batch.id
+        # Add PO links directly from modal selection (skipping Step 2)
+        added_count = 0
+        for po_data in selected_po_summaries:
+            doc_entry = po_data.get('DocEntry')
+            
+            try:
+                # Parse DocDate if present
+                doc_date = None
+                if po_data.get('DocDate'):
+                    try:
+                        doc_date = datetime.strptime(str(po_data.get('DocDate'))[:10], '%Y-%m-%d').date()
+                    except (ValueError, TypeError):
+                        pass
+                
+                po_link = MultiGRNPOLink(
+                    batch_id=new_batch.id,
+                    po_doc_entry=doc_entry,
+                    po_doc_num=po_data.get('DocNum'),
+                    po_card_code=po_data.get('CardCode'),
+                    po_card_name=po_data.get('CardName'),
+                    po_doc_date=doc_date,
+                    po_doc_total=Decimal(str(po_data.get('DocTotal', 0))),
+                    status='selected'
+                )
+                db.session.add(po_link)
+                added_count += 1
+                logging.info(f"✅ Added PO {po_data.get('DocNum')} (DocEntry={doc_entry}) to batch")
+            except Exception as e:
+                logging.error(f"❌ Error adding PO {doc_entry}: {str(e)}")
         
-        # Redirect to step 2 - PO selection with the selected POs
-        return redirect(url_for('multi_grn.create_step2_select_pos', batch_id=new_batch.id))
+        # Update total_pos count
+        new_batch.total_pos = added_count
+        db.session.commit()
+        
+        logging.info(f"✅ Added {added_count} PO(s) to batch {new_batch.batch_number}")
+        flash(f'Created batch with {added_count} Purchase Order(s). Please select line items.', 'success')
+        
+        # Clear any old session data
+        session.pop('multi_grn_selected_po_summaries', None)
+        session.pop('multi_grn_customer_code', None)
+        session.pop('multi_grn_customer_name', None)
+        session.pop('multi_grn_series_id', None)
+        session.pop('multi_grn_series_name', None)
+        session.pop('multi_grn_batch_id', None)
+        
+        # Redirect directly to Step 3 - Line Selection (skipping Step 2)
+        return redirect(url_for('multi_grn.create_step3_select_lines', batch_id=new_batch.id))
         
     except Exception as e:
         db.session.rollback()
