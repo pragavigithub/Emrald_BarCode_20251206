@@ -887,7 +887,7 @@ class SAPMultiGRNService:
             url = (
                 f"{self.base_url}/b1s/v1/$crossjoin(PurchaseOrders,PurchaseOrders/DocumentLines)"
                 f"?$expand=PurchaseOrders($select=CardCode,CardName,DocumentStatus,DocNum,Series,DocDate,DocDueDate,DocTotal,DocEntry),"
-                f"PurchaseOrders/DocumentLines($select=LineNum,ItemCode,ItemDescription,WarehouseCode,UnitsOfMeasurment,DocEntry,LineTotal,LineStatus,Quantity,Price,PriceAfterVAT)"
+                f"PurchaseOrders/DocumentLines($select=LineNum,ItemCode,ItemDescription,RemainingOpenQuantity,WarehouseCode,UnitsOfMeasurment,DocEntry,LineTotal,LineStatus,Quantity,Price,PriceAfterVAT)"
                 f"&$filter=PurchaseOrders/DocumentStatus eq PurchaseOrders/DocumentLines/LineStatus "
                 f"and PurchaseOrders/DocEntry eq PurchaseOrders/DocumentLines/DocEntry "
                 f"and PurchaseOrders/DocumentLines/DocEntry eq {doc_entry}"
