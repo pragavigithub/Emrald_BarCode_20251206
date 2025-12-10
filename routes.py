@@ -923,6 +923,7 @@ def logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
 
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -935,7 +936,7 @@ def dashboard():
         multi_grn_count = MultiGRNBatch.query.filter_by(user_id=current_user.id).count()
         direct_inventory_transfer_count = DirectInventoryTransfer.query.filter_by(user_id=current_user.id).count()
         sap_inventory_count = SAPInventoryCount.query.filter_by(user_id=current_user.id).count()
-        
+
         stats = {
             'grpo_count': grpo_count,
             'transfer_count': transfer_count,
@@ -945,12 +946,16 @@ def dashboard():
             'direct_inventory_transfer_count': direct_inventory_transfer_count,
             'sap_inventory_count': sap_inventory_count
         }
-        
-        # Get recent activity - live data from database
+
+        # ==========================
+        #   RECENT ACTIVITIES
+        # ==========================
         recent_activities = []
-        
-        # Get recent GRPO documents
-        recent_grpos = GRPODocument.query.filter_by(user_id=current_user.id).order_by(GRPODocument.created_at.desc()).limit(5).all()
+
+        # GRPO
+        recent_grpos = GRPODocument.query.filter_by(user_id=current_user.id).order_by(
+            GRPODocument.created_at.desc()).limit(5).all()
+
         for grpo in recent_grpos:
             recent_activities.append({
                 'type': 'GRPO Created',
@@ -958,9 +963,11 @@ def dashboard():
                 'created_at': grpo.created_at,
                 'status': grpo.status
             })
-        
-        # Get recent inventory transfers
-        recent_transfers = InventoryTransfer.query.filter_by(user_id=current_user.id).order_by(InventoryTransfer.created_at.desc()).limit(5).all()
+
+        # Inventory Transfers
+        recent_transfers = InventoryTransfer.query.filter_by(user_id=current_user.id).order_by(
+            InventoryTransfer.created_at.desc()).limit(5).all()
+
         for transfer in recent_transfers:
             recent_activities.append({
                 'type': 'Inventory Transfer',
@@ -968,9 +975,11 @@ def dashboard():
                 'created_at': transfer.created_at,
                 'status': transfer.status
             })
-        
-        # Get recent pick lists
-        recent_picklists = PickList.query.filter_by(user_id=current_user.id).order_by(PickList.created_at.desc()).limit(5).all()
+
+        # Pick List
+        recent_picklists = PickList.query.filter_by(user_id=current_user.id).order_by(
+            PickList.created_at.desc()).limit(5).all()
+
         for picklist in recent_picklists:
             recent_activities.append({
                 'type': 'Pick List',
@@ -978,9 +987,11 @@ def dashboard():
                 'created_at': picklist.created_at,
                 'status': picklist.status
             })
-        
-        # Get recent inventory counts
-        recent_counts = InventoryCount.query.filter_by(user_id=current_user.id).order_by(InventoryCount.created_at.desc()).limit(5).all()
+
+        # Inventory Count
+        recent_counts = InventoryCount.query.filter_by(user_id=current_user.id).order_by(
+            InventoryCount.created_at.desc()).limit(5).all()
+
         for count in recent_counts:
             recent_activities.append({
                 'type': 'Inventory Count',
@@ -988,21 +999,25 @@ def dashboard():
                 'created_at': count.created_at,
                 'status': getattr(count, 'status', 'active')
             })
-        
-        # Get recent SAP Inventory Counting documents
-        recent_sap_counts = SAPInventoryCount.query.filter_by(user_id=current_user.id).order_by(SAPInventoryCount.loaded_at.desc()).limit(5).all()
+
+        # SAP Inventory Count
+        recent_sap_counts = SAPInventoryCount.query.filter_by(user_id=current_user.id).order_by(
+            SAPInventoryCount.loaded_at.desc()).limit(5).all()
+
         for sap_count in recent_sap_counts:
-            from datetime import datetime
-            created_at = datetime.fromisoformat(sap_count.loaded_at) if sap_count.loaded_at and isinstance(sap_count.loaded_at, str) else sap_count.loaded_at if sap_count.loaded_at else datetime.utcnow()
+            created_at = sap_count.loaded_at if isinstance(sap_count.loaded_at, str) \
+                else sap_count.loaded_at.isoformat() if sap_count.loaded_at else None
             recent_activities.append({
                 'type': 'SAP Inventory Count',
                 'description': f"Doc: {sap_count.doc_number} (DocEntry: {sap_count.doc_entry})",
                 'created_at': created_at,
                 'status': sap_count.document_status or 'Open'
             })
-        
-        # Get recent Multi GRN batches
-        recent_multi_grns = MultiGRNBatch.query.filter_by(user_id=current_user.id).order_by(MultiGRNBatch.created_at.desc()).limit(5).all()
+
+        # Multi GRN
+        recent_multi_grns = MultiGRNBatch.query.filter_by(user_id=current_user.id).order_by(
+            MultiGRNBatch.created_at.desc()).limit(5).all()
+
         for batch in recent_multi_grns:
             recent_activities.append({
                 'type': 'Multi GRN Batch',
@@ -1010,9 +1025,11 @@ def dashboard():
                 'created_at': batch.created_at,
                 'status': batch.status
             })
-        
-        # Get recent Direct Inventory Transfers
-        recent_direct_transfers = DirectInventoryTransfer.query.filter_by(user_id=current_user.id).order_by(DirectInventoryTransfer.created_at.desc()).limit(5).all()
+
+        # Direct Inventory Transfer
+        recent_direct_transfers = DirectInventoryTransfer.query.filter_by(user_id=current_user.id).order_by(
+            DirectInventoryTransfer.created_at.desc()).limit(5).all()
+
         for transfer in recent_direct_transfers:
             recent_activities.append({
                 'type': 'Direct Inventory Transfer',
@@ -1020,26 +1037,153 @@ def dashboard():
                 'created_at': transfer.created_at,
                 'status': transfer.status
             })
-        
-        # Sort all activities by creation date and get top 10
-        recent_activities = sorted(recent_activities, key=lambda x: x['created_at'], reverse=True)[:10]
-        
+
+        # Sort top 10
+        recent_activities = sorted(
+            recent_activities, key=lambda x: x['created_at'] or "", reverse=True
+        )[:10]
+
     except Exception as e:
         logging.error(f"Database error in dashboard: {e}")
-        # Handle database schema mismatch gracefully
-        stats = {
-            'grpo_count': 0,
-            'transfer_count': 0,
-            'pick_list_count': 0,
-            'count_tasks': 0,
-            'multi_grn_count': 0,
-            'direct_inventory_transfer_count': 0,
-            'sap_inventory_count': 0
-        }
+        stats = {key: 0 for key in [
+            'grpo_count', 'transfer_count', 'pick_list_count',
+            'count_tasks', 'multi_grn_count',
+            'direct_inventory_transfer_count', 'sap_inventory_count'
+        ]}
         recent_activities = []
-        flash('Database needs to be updated. Please run: python migrate_database.py', 'warning')
-    
+
+    # ============================================================
+    #  RETURN JSON IF REQUESTED
+    # ============================================================
+    if request.args.get("format") == "json" or \
+            request.headers.get("Accept") == "application/json":
+        return jsonify({
+            "success": True,
+            "stats": stats,
+            "recent_activities": recent_activities
+        })
+
+    # Default → return existing HTML template
     return render_template('dashboard.html', stats=stats, recent_activities=recent_activities)
+
+
+# @app.route('/dashboard')
+# @login_required
+# def dashboard():
+#     try:
+#         # Get dashboard statistics
+#         grpo_count = GRPODocument.query.filter_by(user_id=current_user.id).count()
+#         transfer_count = InventoryTransfer.query.filter_by(user_id=current_user.id).count()
+#         pick_list_count = PickList.query.filter_by(user_id=current_user.id).count()
+#         count_tasks = InventoryCount.query.filter_by(user_id=current_user.id).count()
+#         multi_grn_count = MultiGRNBatch.query.filter_by(user_id=current_user.id).count()
+#         direct_inventory_transfer_count = DirectInventoryTransfer.query.filter_by(user_id=current_user.id).count()
+#         sap_inventory_count = SAPInventoryCount.query.filter_by(user_id=current_user.id).count()
+#
+#         stats = {
+#             'grpo_count': grpo_count,
+#             'transfer_count': transfer_count,
+#             'pick_list_count': pick_list_count,
+#             'count_tasks': count_tasks,
+#             'multi_grn_count': multi_grn_count,
+#             'direct_inventory_transfer_count': direct_inventory_transfer_count,
+#             'sap_inventory_count': sap_inventory_count
+#         }
+#
+#         # Get recent activity - live data from database
+#         recent_activities = []
+#
+#         # Get recent GRPO documents
+#         recent_grpos = GRPODocument.query.filter_by(user_id=current_user.id).order_by(GRPODocument.created_at.desc()).limit(5).all()
+#         for grpo in recent_grpos:
+#             recent_activities.append({
+#                 'type': 'GRPO Created',
+#                 'description': f"PO: {grpo.po_number}",
+#                 'created_at': grpo.created_at,
+#                 'status': grpo.status
+#             })
+#
+#         # Get recent inventory transfers
+#         recent_transfers = InventoryTransfer.query.filter_by(user_id=current_user.id).order_by(InventoryTransfer.created_at.desc()).limit(5).all()
+#         for transfer in recent_transfers:
+#             recent_activities.append({
+#                 'type': 'Inventory Transfer',
+#                 'description': f"Request: {transfer.transfer_request_number}",
+#                 'created_at': transfer.created_at,
+#                 'status': transfer.status
+#             })
+#
+#         # Get recent pick lists
+#         recent_picklists = PickList.query.filter_by(user_id=current_user.id).order_by(PickList.created_at.desc()).limit(5).all()
+#         for picklist in recent_picklists:
+#             recent_activities.append({
+#                 'type': 'Pick List',
+#                 'description': f"List: {picklist.pick_list_number}",
+#                 'created_at': picklist.created_at,
+#                 'status': picklist.status
+#             })
+#
+#         # Get recent inventory counts
+#         recent_counts = InventoryCount.query.filter_by(user_id=current_user.id).order_by(InventoryCount.created_at.desc()).limit(5).all()
+#         for count in recent_counts:
+#             recent_activities.append({
+#                 'type': 'Inventory Count',
+#                 'description': f"Count: {count.count_number}",
+#                 'created_at': count.created_at,
+#                 'status': getattr(count, 'status', 'active')
+#             })
+#
+#         # Get recent SAP Inventory Counting documents
+#         recent_sap_counts = SAPInventoryCount.query.filter_by(user_id=current_user.id).order_by(SAPInventoryCount.loaded_at.desc()).limit(5).all()
+#         for sap_count in recent_sap_counts:
+#             from datetime import datetime
+#             created_at = datetime.fromisoformat(sap_count.loaded_at) if sap_count.loaded_at and isinstance(sap_count.loaded_at, str) else sap_count.loaded_at if sap_count.loaded_at else datetime.utcnow()
+#             recent_activities.append({
+#                 'type': 'SAP Inventory Count',
+#                 'description': f"Doc: {sap_count.doc_number} (DocEntry: {sap_count.doc_entry})",
+#                 'created_at': created_at,
+#                 'status': sap_count.document_status or 'Open'
+#             })
+#
+#         # Get recent Multi GRN batches
+#         recent_multi_grns = MultiGRNBatch.query.filter_by(user_id=current_user.id).order_by(MultiGRNBatch.created_at.desc()).limit(5).all()
+#         for batch in recent_multi_grns:
+#             recent_activities.append({
+#                 'type': 'Multi GRN Batch',
+#                 'description': f"Batch #{batch.id} - {batch.customer_name}",
+#                 'created_at': batch.created_at,
+#                 'status': batch.status
+#             })
+#
+#         # Get recent Direct Inventory Transfers
+#         recent_direct_transfers = DirectInventoryTransfer.query.filter_by(user_id=current_user.id).order_by(DirectInventoryTransfer.created_at.desc()).limit(5).all()
+#         for transfer in recent_direct_transfers:
+#             recent_activities.append({
+#                 'type': 'Direct Inventory Transfer',
+#                 'description': f"Transfer: {transfer.transfer_number}",
+#                 'created_at': transfer.created_at,
+#                 'status': transfer.status
+#             })
+#
+#         # Sort all activities by creation date and get top 10
+#         recent_activities = sorted(recent_activities, key=lambda x: x['created_at'], reverse=True)[:10]
+#
+#     except Exception as e:
+#         logging.error(f"Database error in dashboard: {e}")
+#         # Handle database schema mismatch gracefully
+#         stats = {
+#             'grpo_count': 0,
+#             'transfer_count': 0,
+#             'pick_list_count': 0,
+#             'count_tasks': 0,
+#             'multi_grn_count': 0,
+#             'direct_inventory_transfer_count': 0,
+#             'sap_inventory_count': 0
+#         }
+#         recent_activities = []
+#         flash('Database needs to be updated. Please run: python migrate_database.py', 'warning')
+#
+#     return render_template('dashboard.html', stats=stats, recent_activities=recent_activities)
 
 @app.route('/grpo')
 @login_required
