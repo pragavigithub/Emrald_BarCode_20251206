@@ -41,6 +41,17 @@ The system is built on a Flask web application backend, utilizing Jinja2 for ser
 *   **Branch Management:** Functionality for managing different warehouse branches.
 *   **Quality Control Dashboard:** Provides a unified oversight for quality approval workflows across Multi GRN, Direct Transfer, and Sales Delivery modules, with SAP B1 posting integration upon approval.
 *   **SO Against Invoice Module:** Allows creating invoices against existing Sales Orders with SAP B1 integration, including SO series selection, SO number validation, and item validation.
+*   **Item Tracking Module:** Serial number tracking module that fetches transaction history from SAP B1 using the 'item_tracking' SQL Query. Supports manual entry and QR code scanning, displays document type names (GRPO, Delivery, Invoice, Transfer, etc.) with complete SAP B1 DocType mapping.
+
+## Recent Changes (December 10, 2025)
+*   **Item Tracking Module:** New module for tracking items by serial number with SAP B1 integration:
+    - URL: `/item-tracking/`
+    - Uses SAP SQL Query 'item_tracking' for fetching serial number history
+    - Displays SAP B1 DocType as human-readable document names (e.g., DocType 20 = "Goods Receipt PO")
+    - Supports camera-based QR code scanning and manual serial number entry
+    - Complete DocType mapping including GRPO, Delivery, Invoice, Transfer, Production Order, etc.
+    - Added 'item_tracking' permission for admin, manager, and user roles
+    - MySQL migration: `migrations/mysql/changes/2025-12-10_item_tracking_module.sql`
 
 ## Recent Changes (December 8, 2025)
 *   **Multi GRN Workflow Optimization - Skip Step 2:** Modified the Multi GRN creation workflow to skip the redundant PO selection screen (Step 2). Now when users select CardCode and POs in the modal, clicking "Next: Select Lines" goes directly to Step 3 (Line Selection) instead of showing another PO selection page. PO links are now added directly in the `create_grn_from_modal` route, and line items are fetched using the SAP B1 $crossjoin method for efficient DocEntry-based line number selection.
