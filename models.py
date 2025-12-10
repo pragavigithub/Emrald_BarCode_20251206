@@ -64,7 +64,8 @@ class User(UserMixin, db.Model):
             'user_management': False,
             'qc_dashboard': False,
             'multiple_grn': False,
-            'so_against_invoice': False
+            'so_against_invoice': False,
+            'item_tracking': False
         }
 
         if self.role == 'admin':
@@ -86,7 +87,8 @@ class User(UserMixin, db.Model):
                 'label_printing': True,
                 'user_management': True,
                 'multiple_grn': True,
-                'so_against_invoice': True
+                'so_against_invoice': True,
+                'item_tracking': True
             })
         elif self.role == 'qc':
             permissions.update({
@@ -105,6 +107,7 @@ class User(UserMixin, db.Model):
                 'sales_delivery': True,
                 'multiple_grn': True,
                 'so_against_invoice': True,
+                'item_tracking': True,
                 'pick_list': True,
                 'inventory_counting': True,
                 'bin_scanning': True,

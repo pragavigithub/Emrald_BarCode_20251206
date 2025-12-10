@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Item Tracking - WMS{% endblock %}
+
+{% block head %}
+<style>
+    .tracking-card {
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .search-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 2rem;
+        color: white;
+    }
+    .search-section .form-control {
+        font-size: 1.1rem;
+        padding: 0.75rem 1rem;
+    }
+    .doc-type-badge {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+    .doc-grpo { background-color: #28a745; color: white; }
+    .doc-delivery { background-color: #17a2b8; color: white; }
+    .doc-order { background-color: #ffc107; color: black; }
+    .doc-invoice { background-color: #6c757d; color: white; }
+    .doc-transfer { background-color: #6610f2; color: white; }
+    .doc-receipt { background-color: #20c997; color: white; }
+    .doc-issue { background-color: #dc3545; color: white; }
+    .doc-other { background-color: #adb5bd; color: black; }
+    .quantity-positive { color: #28a745; font-weight: bold; }
+    .quantity-negative { color: #dc3545; font-weight: bold; }
+    .results-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .results-table td {
+        vertical-align: middle;
+    }
+    .scanner-btn {
+        background: rgba(255,255,255,0.2);
+        border: 2px solid white;
+        color: white;
+        transition: all 0.3s;
+    }
+    .scanner-btn:hover {
+        background: white;
+        color: #667eea;
+    }
+    .empty-state {
+        padding: 3rem;
+        text-align: center;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i data-feather="search" class="me-2"></i>Item Tracking
+                </h2>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i data-feather="arrow-left" class="me-1"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="search-section">
+                <h4 class="mb-3"><i data-feather="tag" class="me-2"></i>Search by Serial Number</h4>
+                <form method="POST" action="{{ url_for('item_tracking.search') }}" id="searchForm">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-8">
+                            <label class="form-label text-white-50">Enter or Scan Serial Number</label>
+                            <div class="input-group">
+                                <input type="text" 
+                                       class="form-control" 
+                                       name="serial_number" 
+                                       id="serialNumber"
+                                       value="{{ serial_number if serial_number else '' }}"
+                                       placeholder="Enter serial number or scan QR code..."
+                                       autocomplete="off"
+                                       autofocus>
+                                <button type="button" class="btn scanner-btn" id="scanBtn" title="Scan QR Code">
+                                    <i data-feather="camera"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-light btn-lg w-100">
+                                <i data-feather="search" class="me-2"></i>Search
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i data-feather="alert-circle" class="me-2"></i>
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if items is defined %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card tracking-card">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i data-feather="list" class="me-2"></i>
+                            Tracking Results for: <strong class="text-primary">{{ serial_number }}</strong>
+                        </h5>
+                        <span class="badge bg-primary">{{ total_records }} Record(s)</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if items and items|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-hover results-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date</th>
+                                    <th>Document Type</th>
+                                    <th>Doc No.</th>
+                                    <th>Item Code</th>
+                                    <th>Business Partner</th>
+                                    <th>Warehouse</th>
+                                    <th class="text-end">Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ item.FormattedDate }}</td>
+                                    <td>
+                                        {% set doc_type = item.DocType %}
+                                        {% if doc_type == 20 %}
+                                            <span class="doc-type-badge doc-grpo">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type == 15 %}
+                                            <span class="doc-type-badge doc-delivery">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type == 17 %}
+                                            <span class="doc-type-badge doc-order">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type in [13, 18] %}
+                                            <span class="doc-type-badge doc-invoice">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type == 67 %}
+                                            <span class="doc-type-badge doc-transfer">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type == 59 %}
+                                            <span class="doc-type-badge doc-receipt">{{ item.DocTypeName }}</span>
+                                        {% elif doc_type == 60 %}
+                                            <span class="doc-type-badge doc-issue">{{ item.DocTypeName }}</span>
+                                        {% else %}
+                                            <span class="doc-type-badge doc-other">{{ item.DocTypeName }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ item.DocNum }}</strong></td>
+                                    <td>{{ item.ItemCode }}</td>
+                                    <td>
+                                        {% if item.CardCode %}
+                                            <strong>{{ item.CardCode }}</strong><br>
+                                            <small class="text-muted">{{ item.CardName }}</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.WhsCode or '-' }}</td>
+                                    <td class="text-end">
+                                        {% if item.Quantity and item.Quantity > 0 %}
+                                            <span class="quantity-positive">+{{ item.Quantity }}</span>
+                                        {% elif item.Quantity and item.Quantity < 0 %}
+                                            <span class="quantity-negative">{{ item.Quantity }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i data-feather="inbox"></i>
+                        <h5>No Records Found</h5>
+                        <p class="text-muted">No tracking information found for serial number: <strong>{{ serial_number }}</strong></p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card tracking-card">
+                <div class="card-body empty-state">
+                    <i data-feather="search"></i>
+                    <h5>Search for Item History</h5>
+                    <p class="text-muted">Enter a serial number above to view the complete transaction history for that item.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="scannerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i data-feather="camera" class="me-2"></i>Scan QR Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="qr-reader" style="width: 100%;"></div>
+                <div id="qr-reader-results" class="mt-3 text-center"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+    
+    const scanBtn = document.getElementById('scanBtn');
+    const scannerModal = new bootstrap.Modal(document.getElementById('scannerModal'));
+    const serialInput = document.getElementById('serialNumber');
+    const searchForm = document.getElementById('searchForm');
+    let html5QrCode = null;
+    
+    scanBtn.addEventListener('click', function() {
+        scannerModal.show();
+        
+        setTimeout(function() {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error("Camera error:", err);
+                document.getElementById('qr-reader-results').innerHTML = 
+                    '<div class="alert alert-danger">Unable to access camera. Please check permissions.</div>';
+            });
+        }, 300);
+    });
+    
+    function onScanSuccess(decodedText, decodedResult) {
+        html5QrCode.stop().then(() => {
+            serialInput.value = decodedText;
+            scannerModal.hide();
+            searchForm.submit();
+        });
+    }
+    
+    function onScanFailure(error) {
+    }
+    
+    document.getElementById('scannerModal').addEventListener('hidden.bs.modal', function() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop();
+        }
+    });
+    
+    serialInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchForm.submit();
+        }
+    });
+});
+</script>
+{% endblock %}

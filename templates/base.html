@@ -153,6 +153,13 @@
                     </a>
                 </li>
                 {% endif %}
+                {% if current_user.has_permission('item_tracking') %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('item_tracking.index') }}">
+                        <i data-feather="search"></i> Item Tracking
+                    </a>
+                </li>
+                {% endif %}
                 {% if current_user.has_permission('label_printing') %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
