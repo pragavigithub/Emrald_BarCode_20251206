@@ -7,9 +7,9 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
             <h1>SAP Inventory Counting History</h1>
-            <a href="{{ url_for('inventory_counting_sap') }}" class="btn btn-primary">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newCountModal">
                 <i data-feather="plus"></i> New Count
-            </a>
+            </button>
         </div>
     </div>
 </div>
@@ -249,6 +249,56 @@
         </div>
     </div>
 </div>
+
+<!-- New Count Modal -->
+<div class="modal fade" id="newCountModal" tabindex="-1" aria-labelledby="newCountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newCountModalLabel">Create Inventory Counting</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="invcnt_series" class="form-label">Document Series <span class="text-danger">*</span></label>
+                    <select class="form-select" id="invcnt_series" name="invcnt_series" required onchange="loadInvcntDocNumbers(this.value)">
+                        <option value="">Select Series</option>
+                    </select>
+                    <small class="form-text text-muted">Select the document series for the counting document</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="invcnt_doc_num" class="form-label">Document Number <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <select class="form-select" id="invcnt_doc_num" name="invcnt_doc_num" required disabled onchange="onDocNumberSelected(this)">
+                            <option value="">Select Series First</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" onclick="scanInvcntDocNum()">
+                            <i data-feather="camera"></i> Scan
+                        </button>
+                    </div>
+                    <small class="form-text text-muted" id="docNumHelpText">Select the document series first</small>
+                </div>
+
+                <input type="hidden" id="selected_doc_entry">
+                <input type="hidden" id="selected_series">
+
+                <div class="scanner-container" id="invcntScannerContainer" style="display: none;">
+                    <video id="invcntScanVideo" class="scanner-video" autoplay></video>
+                    <div class="scanner-overlay"></div>
+                </div>
+
+                <div id="invcntValidationResult" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnOpenCount" onclick="openSelectedCount()" disabled>
+                    <i data-feather="file-text"></i> Open Counting
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -256,6 +306,125 @@
 let currentDocEntry = null;
 let currentDocNumber = null;
 let currentSeries = null;
+
+// New Count Modal functions
+document.getElementById('newCountModal').addEventListener('shown.bs.modal', async function () {
+    await loadInvcntSeries();
+    if (typeof feather !== 'undefined') feather.replace();
+});
+
+async function loadInvcntSeries() {
+    const seriesSelect = document.getElementById('invcnt_series');
+    seriesSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    try {
+        const response = await fetch('/api/get-invcnt-series');
+        const data = await response.json();
+        
+        seriesSelect.innerHTML = '<option value="">Select Series</option>';
+        
+        if (data.success && data.series) {
+            data.series.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.Series;
+                option.textContent = `${item.SeriesName} (${item.Series})`;
+                seriesSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading INVCNT series:', error);
+        seriesSelect.innerHTML = '<option value="">Error Loading Series</option>';
+    }
+}
+
+async function loadInvcntDocNumbers(series) {
+    const docNumSelect = document.getElementById('invcnt_doc_num');
+    const helpText = document.getElementById('docNumHelpText');
+    const openBtn = document.getElementById('btnOpenCount');
+    
+    if (!series) {
+        docNumSelect.innerHTML = '<option value="">Select Series First</option>';
+        docNumSelect.disabled = true;
+        helpText.textContent = 'Select the document series first';
+        openBtn.disabled = true;
+        return;
+    }
+    
+    docNumSelect.innerHTML = '<option value="">Loading...</option>';
+    docNumSelect.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/get-open-invcnt-docnums?series=${series}`);
+        const data = await response.json();
+        
+        if (data.success && data.documents && data.documents.length > 0) {
+            docNumSelect.innerHTML = '<option value="">Select Document Number</option>';
+            data.documents.forEach(doc => {
+                const option = document.createElement('option');
+                option.value = doc.DocNum;
+                option.textContent = `${doc.DocNum} - DocEntry: ${doc.DocEntry}`;
+                option.setAttribute('data-doc-entry', doc.DocEntry);
+                option.setAttribute('data-series', series);
+                docNumSelect.appendChild(option);
+            });
+            docNumSelect.disabled = false;
+            helpText.textContent = 'Select an open counting document';
+        } else {
+            docNumSelect.innerHTML = '<option value="">No Open Documents Found</option>';
+            docNumSelect.disabled = true;
+            helpText.textContent = 'No open counting documents available for this series';
+        }
+    } catch (error) {
+        console.error('Error loading Inventory Counting document numbers:', error);
+        docNumSelect.innerHTML = '<option value="">Error Loading Documents</option>';
+        helpText.textContent = 'Error loading documents';
+    }
+    
+    openBtn.disabled = true;
+}
+
+function onDocNumberSelected(select) {
+    const selectedOption = select.options[select.selectedIndex];
+    const docEntry = selectedOption.getAttribute('data-doc-entry');
+    const series = selectedOption.getAttribute('data-series');
+    const openBtn = document.getElementById('btnOpenCount');
+    
+    if (docEntry) {
+        document.getElementById('selected_doc_entry').value = docEntry;
+        document.getElementById('selected_series').value = series;
+        openBtn.disabled = false;
+    } else {
+        document.getElementById('selected_doc_entry').value = '';
+        document.getElementById('selected_series').value = '';
+        openBtn.disabled = true;
+    }
+}
+
+function openSelectedCount() {
+    const docEntry = document.getElementById('selected_doc_entry').value;
+    const series = document.getElementById('selected_series').value;
+    const docNum = document.getElementById('invcnt_doc_num').value;
+    
+    if (docEntry) {
+        window.location.href = `{{ url_for('inventory_counting_sap') }}?doc_entry=${docEntry}&doc_num=${docNum}&series=${series}`;
+    }
+}
+
+function scanInvcntDocNum() {
+    // Scanner functionality placeholder - can be implemented if needed
+    alert('Barcode scanning feature will be available when camera access is configured.');
+}
+
+// Reset New Count modal when hidden
+document.getElementById('newCountModal').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('invcnt_series').innerHTML = '<option value="">Select Series</option>';
+    document.getElementById('invcnt_doc_num').innerHTML = '<option value="">Select Series First</option>';
+    document.getElementById('invcnt_doc_num').disabled = true;
+    document.getElementById('selected_doc_entry').value = '';
+    document.getElementById('selected_series').value = '';
+    document.getElementById('btnOpenCount').disabled = true;
+    document.getElementById('docNumHelpText').textContent = 'Select the document series first';
+});
 
 function changeRowsPerPage(perPage) {
     const urlParams = new URLSearchParams(window.location.search);
