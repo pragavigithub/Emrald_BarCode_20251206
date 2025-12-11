@@ -1228,12 +1228,10 @@ def dashboard():
             SAPInventoryCount.loaded_at.desc()).limit(5).all()
 
         for sap_count in recent_sap_counts:
-            created_at = sap_count.loaded_at if isinstance(sap_count.loaded_at, str) \
-                else sap_count.loaded_at.isoformat() if sap_count.loaded_at else None
             recent_activities.append({
                 'type': 'SAP Inventory Count',
                 'description': f"Doc: {sap_count.doc_number} (DocEntry: {sap_count.doc_entry})",
-                'created_at': created_at,
+                'created_at': normalize_datetime(sap_count.loaded_at),
                 'status': sap_count.document_status or 'Open'
             })
 
@@ -1261,9 +1259,9 @@ def dashboard():
                 'status': transfer.status
             })
 
-        # Sort top 10
+        # Sort top 10 - all created_at values are now datetime objects
         recent_activities = sorted(
-            recent_activities, key=lambda x: x['created_at'] or "", reverse=True
+            recent_activities, key=lambda x: x['created_at'] if isinstance(x['created_at'], datetime) else datetime.min, reverse=True
         )[:10]
 
     except Exception as e:
