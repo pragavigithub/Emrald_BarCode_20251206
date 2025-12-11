@@ -527,14 +527,27 @@ def update_inventory_counting():
         if result.get('success'):
             # Update local database after successful PATCH
             try:
+                # Helper to safely convert to float with default
+                def safe_float(value, default=0):
+                    if value is None or value == '':
+                        return default
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        return default
+                
                 local_doc = SAPInventoryCount.query.filter_by(doc_entry=int(doc_entry)).first()
+                
+                # Get lines from document - try both key names for compatibility
+                lines = document.get('InventoryCountingLines', []) or document.get('InventoryCountLines', [])
                 
                 if local_doc:
                     # Update document header
                     local_doc.last_updated_at = datetime.utcnow()
+                    local_doc.document_status = document.get('DocumentStatus', local_doc.document_status)
+                    local_doc.remarks = document.get('Remarks', local_doc.remarks)
                     
                     # Update counting lines based on submitted data
-                    lines = document.get('InventoryCountLines', [])
                     for line_data in lines:
                         line_number = line_data.get('LineNumber')
                         local_line = SAPInventoryCountLine.query.filter_by(
@@ -543,18 +556,128 @@ def update_inventory_counting():
                         ).first()
                         
                         if local_line:
-                            # Update the counted quantity and status
-                            local_line.uom_counted_quantity = float(line_data.get('UoMCountedQuantity', 0))
+                            # Update all relevant fields from SAP payload
+                            local_line.item_code = line_data.get('ItemCode', local_line.item_code)
+                            local_line.item_description = line_data.get('ItemDescription', local_line.item_description)
+                            local_line.warehouse_code = line_data.get('WarehouseCode', local_line.warehouse_code)
+                            local_line.bin_entry = line_data.get('BinEntry', local_line.bin_entry)
+                            local_line.in_warehouse_quantity = safe_float(line_data.get('InWarehouseQuantity'), local_line.in_warehouse_quantity or 0)
+                            local_line.uom_code = line_data.get('UoMCode', local_line.uom_code)
+                            local_line.bar_code = line_data.get('BarCode', local_line.bar_code)
+                            local_line.items_per_unit = safe_float(line_data.get('ItemsPerUnit'), local_line.items_per_unit or 1)
+                            local_line.counter_type = line_data.get('CounterType', local_line.counter_type)
+                            local_line.counter_id = line_data.get('CounterID', local_line.counter_id)
+                            local_line.line_status = line_data.get('LineStatus', local_line.line_status)
+                            local_line.u_floor = line_data.get('U_Floor', local_line.u_floor)
+                            local_line.u_rack = line_data.get('U_Rack', local_line.u_rack)
+                            local_line.u_level = line_data.get('U_Level', local_line.u_level)
+                            # Update counted quantity and status
+                            local_line.uom_counted_quantity = safe_float(line_data.get('UoMCountedQuantity'), 0)
                             local_line.counted = line_data.get('Counted', 'tNO')
-                            
-                            # Recalculate variance
-                            local_line.variance = local_line.uom_counted_quantity - local_line.in_warehouse_quantity
+                            # Calculate variance from quantities if not provided by SAP
+                            if line_data.get('Variance') is not None:
+                                local_line.variance = safe_float(line_data.get('Variance'), 0)
+                            else:
+                                local_line.variance = local_line.uom_counted_quantity - (local_line.in_warehouse_quantity or 0)
                             local_line.updated_at = datetime.utcnow()
+                        else:
+                            # Create new line if it doesn't exist locally
+                            in_wh_qty = safe_float(line_data.get('InWarehouseQuantity'), 0)
+                            counted_qty = safe_float(line_data.get('UoMCountedQuantity'), 0)
+                            # Calculate variance if not provided
+                            variance_val = line_data.get('Variance')
+                            if variance_val is None:
+                                variance_val = counted_qty - in_wh_qty
+                            else:
+                                variance_val = safe_float(variance_val, 0)
+                            
+                            new_line = SAPInventoryCountLine(
+                                count_id=local_doc.id,
+                                line_number=line_number,
+                                item_code=line_data.get('ItemCode', ''),
+                                item_description=line_data.get('ItemDescription', ''),
+                                warehouse_code=line_data.get('WarehouseCode', ''),
+                                bin_entry=line_data.get('BinEntry'),
+                                in_warehouse_quantity=in_wh_qty,
+                                counted=line_data.get('Counted', 'tNO'),
+                                uom_code=line_data.get('UoMCode', ''),
+                                bar_code=line_data.get('BarCode', ''),
+                                uom_counted_quantity=counted_qty,
+                                items_per_unit=safe_float(line_data.get('ItemsPerUnit'), 1),
+                                variance=variance_val,
+                                counter_type=line_data.get('CounterType', ''),
+                                counter_id=line_data.get('CounterID'),
+                                line_status=line_data.get('LineStatus', ''),
+                                u_floor=line_data.get('U_Floor', ''),
+                                u_rack=line_data.get('U_Rack', ''),
+                                u_level=line_data.get('U_Level', '')
+                            )
+                            db.session.add(new_line)
                     
                     db.session.commit()
                     logging.info(f"✅ Updated local counting document {doc_entry} after PATCH")
                 else:
-                    logging.warning(f"⚠️ Local document {doc_entry} not found for update")
+                    # Create new local document if it doesn't exist
+                    logging.info(f"Creating new local record for document {doc_entry}")
+                    local_doc = SAPInventoryCount(
+                        doc_entry=int(doc_entry),
+                        doc_number=document.get('DocumentNumber'),
+                        series=document.get('Series', 0),
+                        count_date=document.get('CountDate', ''),
+                        counting_type=document.get('CountingType', ''),
+                        count_time=document.get('CountTime', ''),
+                        single_counter_type=document.get('SingleCounterType', ''),
+                        document_status=document.get('DocumentStatus', ''),
+                        remarks=document.get('Remarks', ''),
+                        reference_2=document.get('Reference2', ''),
+                        branch_id=str(document.get('BPL_IDAssignedToInvoice', '')),
+                        financial_period=document.get('FinancialPeriod'),
+                        counter_type=document.get('CounterType', ''),
+                        counter_id=document.get('CounterID'),
+                        multiple_counter_role=document.get('MultipleCounterRole', ''),
+                        user_id=current_user.id,
+                        loaded_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                        last_updated_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    )
+                    db.session.add(local_doc)
+                    db.session.flush()  # Get the ID for the document
+                    
+                    # Add all line items
+                    for line_data in lines:
+                        in_wh_qty = safe_float(line_data.get('InWarehouseQuantity'), 0)
+                        counted_qty = safe_float(line_data.get('UoMCountedQuantity'), 0)
+                        # Calculate variance if not provided
+                        variance_val = line_data.get('Variance')
+                        if variance_val is None:
+                            variance_val = counted_qty - in_wh_qty
+                        else:
+                            variance_val = safe_float(variance_val, 0)
+                        
+                        new_line = SAPInventoryCountLine(
+                            count_id=local_doc.id,
+                            line_number=line_data.get('LineNumber', 0),
+                            item_code=line_data.get('ItemCode', ''),
+                            item_description=line_data.get('ItemDescription', ''),
+                            warehouse_code=line_data.get('WarehouseCode', ''),
+                            bin_entry=line_data.get('BinEntry'),
+                            in_warehouse_quantity=in_wh_qty,
+                            counted=line_data.get('Counted', 'tNO'),
+                            uom_code=line_data.get('UoMCode', ''),
+                            bar_code=line_data.get('BarCode', ''),
+                            uom_counted_quantity=counted_qty,
+                            items_per_unit=safe_float(line_data.get('ItemsPerUnit'), 1),
+                            variance=variance_val,
+                            counter_type=line_data.get('CounterType', ''),
+                            counter_id=line_data.get('CounterID'),
+                            line_status=line_data.get('LineStatus', ''),
+                            u_floor=line_data.get('U_Floor', ''),
+                            u_rack=line_data.get('U_Rack', ''),
+                            u_level=line_data.get('U_Level', '')
+                        )
+                        db.session.add(new_line)
+                    
+                    db.session.commit()
+                    logging.info(f"✅ Created local counting document {doc_entry} with {len(lines)} lines after PATCH")
                     
             except Exception as e:
                 db.session.rollback()
