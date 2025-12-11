@@ -1131,6 +1131,7 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    from datetime import datetime
     try:
         # Get dashboard statistics
         grpo_count = GRPODocument.query.filter_by(user_id=current_user.id).count()
@@ -1151,6 +1152,24 @@ def dashboard():
             'sap_inventory_count': sap_inventory_count
         }
 
+        from datetime import datetime
+
+        def normalize_datetime(value):
+            """Convert created_at to datetime object safely."""
+            if isinstance(value, datetime):
+                return value
+            if not value:
+                return datetime.min
+            try:
+                # Example input: "Mon, 08 Dec 2025 01:27:26 GMT"
+                return datetime.strptime(value.replace(" GMT", ""), "%a, %d %b %Y %H:%M:%S")
+            except:
+                try:
+                    # ISO format fallback
+                    return datetime.fromisoformat(value.replace("Z", ""))
+                except:
+                    return datetime.min
+
         # ==========================
         #   RECENT ACTIVITIES
         # ==========================
@@ -1164,7 +1183,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'GRPO Created',
                 'description': f"PO: {grpo.po_number}",
-                'created_at': grpo.created_at,
+                'created_at': normalize_datetime(grpo.created_at),
                 'status': grpo.status
             })
 
@@ -1176,7 +1195,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'Inventory Transfer',
                 'description': f"Request: {transfer.transfer_request_number}",
-                'created_at': transfer.created_at,
+                'created_at': normalize_datetime(transfer.created_at),
                 'status': transfer.status
             })
 
@@ -1188,7 +1207,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'Pick List',
                 'description': f"List: {picklist.pick_list_number}",
-                'created_at': picklist.created_at,
+                'created_at': normalize_datetime(picklist.created_at),
                 'status': picklist.status
             })
 
@@ -1200,7 +1219,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'Inventory Count',
                 'description': f"Count: {count.count_number}",
-                'created_at': count.created_at,
+                'created_at': normalize_datetime(count.created_at),
                 'status': getattr(count, 'status', 'active')
             })
 
@@ -1226,7 +1245,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'Multi GRN Batch',
                 'description': f"Batch #{batch.id} - {batch.customer_name}",
-                'created_at': batch.created_at,
+                'created_at': normalize_datetime(batch.created_at),
                 'status': batch.status
             })
 
@@ -1238,7 +1257,7 @@ def dashboard():
             recent_activities.append({
                 'type': 'Direct Inventory Transfer',
                 'description': f"Transfer: {transfer.transfer_number}",
-                'created_at': transfer.created_at,
+                'created_at': normalize_datetime(transfer.created_at),
                 'status': transfer.status
             })
 
