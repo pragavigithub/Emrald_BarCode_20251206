@@ -43,6 +43,16 @@ The system is built on a Flask web application backend, utilizing Jinja2 for ser
 *   **SO Against Invoice Module:** Allows creating invoices against existing Sales Orders with SAP B1 integration, including SO series selection, SO number validation, and item validation.
 *   **Item Tracking Module:** Serial number tracking module that fetches transaction history from SAP B1 using the 'item_tracking' SQL Query. Supports manual entry and QR code scanning, displays document type names (GRPO, Delivery, Invoice, Transfer, etc.) with complete SAP B1 DocType mapping.
 
+## Recent Changes (December 11, 2025)
+*   **Inventory Counting History View Enhancement:** Fixed issue where line items were not displayed when clicking "View" button:
+    - Created new API endpoint `/api/get-local-invcnt-details` to fetch document details from local database
+    - Updated history page to show modal with document info and line items table
+    - Added eager loading with `joinedload()` to properly display line counts in history table
+    - Line items table shows: Item Code, Description, Warehouse, System Qty, Counted Qty, Variance, Counted status
+    - "Open in SAP Counting" button allows navigation to full SAP counting interface
+    - History now maintained even after posting to SAP B1 (documents become Closed but local data preserved)
+    - MySQL migration: `migrations/mysql/changes/2025-12-11_inventory_counting_history_view.sql`
+
 ## Recent Changes (December 10, 2025)
 *   **Item Tracking Module:** New module for tracking items by serial number with SAP B1 integration:
     - URL: `/item-tracking/`

@@ -581,6 +581,87 @@ def update_inventory_counting():
             'error': str(e)
         }), 500
 
+@app.route('/api/get-local-invcnt-details', methods=['GET'])
+@login_required
+def get_local_invcnt_details():
+    """Get Inventory Counting document details from local database (for history view)"""
+    try:
+        doc_entry = request.args.get('doc_entry')
+        
+        if not doc_entry:
+            return jsonify({
+                'success': False,
+                'error': 'doc_entry is required'
+            }), 400
+        
+        # Fetch from local database
+        local_doc = SAPInventoryCount.query.filter_by(doc_entry=int(doc_entry)).first()
+        
+        if not local_doc:
+            return jsonify({
+                'success': False,
+                'error': f'Document with DocEntry {doc_entry} not found in local database'
+            }), 404
+        
+        # Get line items
+        lines = SAPInventoryCountLine.query.filter_by(count_id=local_doc.id).order_by(SAPInventoryCountLine.line_number).all()
+        
+        # Build response
+        lines_data = []
+        for line in lines:
+            lines_data.append({
+                'LineNumber': line.line_number,
+                'ItemCode': line.item_code,
+                'ItemDescription': line.item_description,
+                'WarehouseCode': line.warehouse_code,
+                'BinEntry': line.bin_entry,
+                'InWarehouseQuantity': line.in_warehouse_quantity,
+                'Counted': line.counted,
+                'UoMCode': line.uom_code,
+                'BarCode': line.bar_code,
+                'UoMCountedQuantity': line.uom_counted_quantity,
+                'Variance': line.variance,
+                'ItemsPerUnit': line.items_per_unit,
+                'CounterType': line.counter_type,
+                'CounterID': line.counter_id,
+                'LineStatus': line.line_status,
+                'U_Floor': line.u_floor,
+                'U_Rack': line.u_rack,
+                'U_Level': line.u_level
+            })
+        
+        doc_data = {
+            'DocEntry': local_doc.doc_entry,
+            'DocNumber': local_doc.doc_number,
+            'Series': local_doc.series,
+            'CountDate': local_doc.count_date,
+            'CountingType': local_doc.counting_type,
+            'CountTime': local_doc.count_time,
+            'SingleCounterType': local_doc.single_counter_type,
+            'DocumentStatus': local_doc.document_status,
+            'Remarks': local_doc.remarks,
+            'Reference2': local_doc.reference_2,
+            'BranchId': local_doc.branch_id,
+            'FinancialPeriod': local_doc.financial_period,
+            'LoadedAt': local_doc.loaded_at.strftime('%Y-%m-%d %H:%M:%S') if local_doc.loaded_at else None,
+            'LastUpdatedAt': local_doc.last_updated_at.strftime('%Y-%m-%d %H:%M:%S') if local_doc.last_updated_at else None,
+            'InventoryCountLines': lines_data
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': doc_data,
+            'source': 'local_database'
+        })
+            
+    except Exception as e:
+        logging.error(f"Error in get_local_invcnt_details API: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/get-po-by-doc-entry', methods=['POST'])
 @login_required
 def get_po_by_doc_entry():
@@ -4526,7 +4607,9 @@ def inventory_counting_history():
         to_date = request.args.get('to_date', '').strip()
         status_filter = request.args.get('status', '').strip()
         
-        query = SAPInventoryCount.query.filter_by(user_id=current_user.id)
+        query = SAPInventoryCount.query.options(
+            db.joinedload(SAPInventoryCount.lines)
+        ).filter_by(user_id=current_user.id)
         
         if search_term:
             search_pattern = f'%{search_term}%'

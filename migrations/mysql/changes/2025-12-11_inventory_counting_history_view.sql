@@ -1,0 +1,56 @@
+-- Migration: Inventory Counting History View Enhancement
+-- Date: 2025-12-11
+-- Description: Documents the API and UI changes for viewing inventory counting line items from local database
+-- This migration is for documentation purposes - no schema changes required
+-- The sap_inventory_counts and sap_inventory_count_lines tables already exist
+
+-- ============================================================================
+-- FEATURE: Inventory Counting History Detail View
+-- ============================================================================
+-- Problem: When clicking "View" button in Inventory Counting History, users
+--          could not see line item details because:
+--          1. The view redirected to SAP Counting page which only loads OPEN documents
+--          2. After posting to SAP B1, documents become Closed and can't be fetched
+--          3. Locally stored line items were never displayed
+--
+-- Solution: Created new API endpoint and updated UI to show line items from local database
+--
+-- New API Endpoint:
+--   GET /api/get-local-invcnt-details?doc_entry=<DocEntry>
+--   Returns: Document header + all line items from sap_inventory_count_lines table
+--
+-- UI Changes:
+--   - View button now opens a modal with document details and line items
+--   - Modal shows: Document Info, Counting Details, Remarks, and Line Items table
+--   - Line items table shows: Item Code, Description, Warehouse, System Qty,
+--     Counted Qty, Variance, and Counted status
+--   - "Open in SAP Counting" button allows opening document in full SAP counting interface
+--
+-- ============================================================================
+-- EXISTING TABLE STRUCTURES (No changes needed)
+-- ============================================================================
+
+-- Table: sap_inventory_counts (already exists)
+-- Stores inventory counting document headers
+
+-- Table: sap_inventory_count_lines (already exists)
+-- Stores inventory counting line items with the following fields used in view:
+--   - line_number: Line number in the document
+--   - item_code: SAP Item Code
+--   - item_description: Item description
+--   - warehouse_code: Warehouse code
+--   - in_warehouse_quantity: System quantity (before counting)
+--   - uom_counted_quantity: Counted quantity
+--   - variance: Difference between counted and system qty
+--   - counted: Whether line was counted ('tYES' or 'tNO')
+
+-- ============================================================================
+-- VERIFICATION QUERY
+-- ============================================================================
+-- To verify line items are stored for a document:
+-- SELECT c.doc_entry, c.doc_number, c.document_status, 
+--        COUNT(l.id) as line_count
+-- FROM sap_inventory_counts c
+-- LEFT JOIN sap_inventory_count_lines l ON c.id = l.count_id
+-- GROUP BY c.id
+-- ORDER BY c.loaded_at DESC;

@@ -224,18 +224,27 @@
 
 <!-- Details Modal -->
 <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="detailsModalLabel">Counting Document Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="detailsModalLabel">
+                    <i data-feather="file-text"></i> Counting Document Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="modalBody">
-                <div class="text-center">
+                <div class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
+                    <p class="mt-2 text-muted">Loading document details...</p>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="btnOpenInSAP" onclick="openInSAPCounting()">
+                    <i data-feather="external-link"></i> Open in SAP Counting
+                </button>
             </div>
         </div>
     </div>
@@ -244,6 +253,10 @@
 
 {% block scripts %}
 <script>
+let currentDocEntry = null;
+let currentDocNumber = null;
+let currentSeries = null;
+
 function changeRowsPerPage(perPage) {
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set('per_page', perPage);
@@ -267,8 +280,179 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function viewCountDetails(docEntry, docNumber, series) {
-    // Open the inventory counting page with this document pre-loaded
-    window.location.href = `{{ url_for('inventory_counting_sap') }}?doc_entry=${docEntry}&doc_num=${docNumber}&series=${series}`;
+    currentDocEntry = docEntry;
+    currentDocNumber = docNumber;
+    currentSeries = series;
+    
+    // Show modal with loading state
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    document.getElementById('modalBody').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading document details from database...</p>
+        </div>
+    `;
+    modal.show();
+    
+    // Fetch details from local database
+    fetch(`/api/get-local-invcnt-details?doc_entry=${docEntry}`)
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                displayCountDetails(result.data);
+            } else {
+                document.getElementById('modalBody').innerHTML = `
+                    <div class="alert alert-warning">
+                        <i data-feather="alert-triangle"></i>
+                        <strong>No local data found.</strong> ${result.error || 'Document details not available in local database.'}
+                        <hr>
+                        <p class="mb-0">The document may not have been loaded properly. Try opening it in SAP Counting to refresh the data.</p>
+                    </div>
+                `;
+                if (typeof feather !== 'undefined') feather.replace();
+            }
+        })
+        .catch(error => {
+            document.getElementById('modalBody').innerHTML = `
+                <div class="alert alert-danger">
+                    <i data-feather="x-circle"></i>
+                    <strong>Error loading details:</strong> ${error.message}
+                </div>
+            `;
+            if (typeof feather !== 'undefined') feather.replace();
+        });
 }
+
+function displayCountDetails(data) {
+    const lines = data.InventoryCountLines || [];
+    const statusBadge = data.DocumentStatus === 'cdsOpen' 
+        ? '<span class="badge bg-success">Open</span>'
+        : '<span class="badge bg-secondary">Closed</span>';
+    
+    let html = `
+        <!-- Document Header -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Document Information</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><td class="fw-bold" style="width: 40%;">Doc Entry:</td><td>${data.DocEntry}</td></tr>
+                            <tr><td class="fw-bold">Doc Number:</td><td>${data.DocNumber || '-'}</td></tr>
+                            <tr><td class="fw-bold">Series:</td><td>${data.Series}</td></tr>
+                            <tr><td class="fw-bold">Status:</td><td>${statusBadge}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Counting Details</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><td class="fw-bold" style="width: 40%;">Count Date:</td><td>${data.CountDate || '-'}</td></tr>
+                            <tr><td class="fw-bold">Counting Type:</td><td>${data.CountingType || '-'}</td></tr>
+                            <tr><td class="fw-bold">Loaded At:</td><td>${data.LoadedAt || '-'}</td></tr>
+                            <tr><td class="fw-bold">Last Updated:</td><td>${data.LastUpdatedAt || '-'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Remarks -->
+        ${data.Remarks ? `
+        <div class="alert alert-info mb-4">
+            <strong>Remarks:</strong> ${data.Remarks}
+        </div>
+        ` : ''}
+        
+        <!-- Line Items -->
+        <h6 class="mb-3"><i data-feather="list"></i> Line Items (${lines.length} items)</h6>
+    `;
+    
+    if (lines.length > 0) {
+        html += `
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Item Code</th>
+                        <th>Description</th>
+                        <th>Warehouse</th>
+                        <th class="text-end">System Qty</th>
+                        <th class="text-end">Counted Qty</th>
+                        <th class="text-end">Variance</th>
+                        <th>Counted</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        lines.forEach((line, index) => {
+            const variance = line.Variance || 0;
+            const varianceClass = variance > 0 ? 'text-success' : (variance < 0 ? 'text-danger' : '');
+            const countedBadge = line.Counted === 'tYES' 
+                ? '<span class="badge bg-success">Yes</span>' 
+                : '<span class="badge bg-warning text-dark">No</span>';
+            
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td><code>${line.ItemCode}</code></td>
+                    <td>${line.ItemDescription || '-'}</td>
+                    <td>${line.WarehouseCode || '-'}</td>
+                    <td class="text-end">${(line.InWarehouseQuantity || 0).toFixed(2)}</td>
+                    <td class="text-end">${(line.UoMCountedQuantity || 0).toFixed(2)}</td>
+                    <td class="text-end ${varianceClass}">${variance.toFixed(2)}</td>
+                    <td>${countedBadge}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                </tbody>
+            </table>
+        </div>
+        `;
+    } else {
+        html += `
+        <div class="alert alert-info">
+            <i data-feather="info"></i> No line items stored for this document.
+        </div>
+        `;
+    }
+    
+    document.getElementById('modalBody').innerHTML = html;
+    
+    // Re-initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+function openInSAPCounting() {
+    if (currentDocEntry) {
+        window.location.href = `{{ url_for('inventory_counting_sap') }}?doc_entry=${currentDocEntry}&doc_num=${currentDocNumber || ''}&series=${currentSeries || ''}`;
+    }
+}
+
+// Reset metadata when modal is hidden
+document.getElementById('detailsModal').addEventListener('hidden.bs.modal', function () {
+    currentDocEntry = null;
+    currentDocNumber = null;
+    currentSeries = null;
+    document.getElementById('modalBody').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading document details...</p>
+        </div>
+    `;
+});
 </script>
 {% endblock %}
