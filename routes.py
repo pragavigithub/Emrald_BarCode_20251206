@@ -708,6 +708,19 @@ def update_inventory_counting():
 @login_required
 def get_local_invcnt_details():
     """Get Inventory Counting document details from local database (for history view)"""
+    from datetime import datetime
+    
+    def safe_format_datetime(value):
+        """Safely format datetime - handles both datetime objects and strings"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        try:
+            return value.strftime('%Y-%m-%d %H:%M:%S')
+        except (AttributeError, TypeError):
+            return str(value) if value else None
+    
     try:
         doc_entry = request.args.get('doc_entry')
         
@@ -766,8 +779,8 @@ def get_local_invcnt_details():
             'Reference2': local_doc.reference_2,
             'BranchId': local_doc.branch_id,
             'FinancialPeriod': local_doc.financial_period,
-            'LoadedAt': local_doc.loaded_at.strftime('%Y-%m-%d %H:%M:%S') if local_doc.loaded_at else None,
-            'LastUpdatedAt': local_doc.last_updated_at.strftime('%Y-%m-%d %H:%M:%S') if local_doc.last_updated_at else None,
+            'LoadedAt': safe_format_datetime(local_doc.loaded_at),
+            'LastUpdatedAt': safe_format_datetime(local_doc.last_updated_at),
             'InventoryCountLines': lines_data
         }
         
