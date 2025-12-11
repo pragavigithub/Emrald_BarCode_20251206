@@ -98,63 +98,63 @@
 </div>
 
 <!-- Quick Actions -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    {% if current_user.has_permission('bin_scanning') %}
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('bin_scanning') }}" class="btn btn-outline-primary w-100">
-                            <i data-feather="search"></i> Scan Bin
-                        </a>
-                    </div>
-                    {% endif %}
-                    {% if current_user.has_permission('label_printing') %}
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('label_printing') }}" class="btn btn-outline-success w-100">
-                            <i data-feather="printer"></i> Print Labels
-                        </a>
-                    </div>
-                    {% endif %}
-                    {% if current_user.has_permission('bin_scanning') or current_user.has_permission('grpo') %}
-                    <div class="col-md-4 mb-3">
-                        <button class="btn btn-outline-warning w-100" onclick="startQuickScan()">
-                            <i data-feather="camera"></i> Quick Scan
-                        </button>
-                    </div>
-                    {% endif %}
-                </div>
-                
-                {% if current_user.has_permission('user_management') or current_user.role in ['admin', 'manager'] %}
-                <hr>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <form action="{{ url_for('sync_sap_data') }}" method="POST" style="display: inline;">
-                            <button type="submit" class="btn btn-outline-primary w-100" onclick="return confirm('This will sync warehouses, bins, and business partners from SAP B1. Continue?')">
-                                <i data-feather="refresh-cw"></i> Sync SAP Data
-                            </button>
-                        </form>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('user_management') }}" class="btn btn-outline-secondary w-100">
-                            <i data-feather="users"></i> Manage Users
-                        </a>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('branch_management') }}" class="btn btn-outline-info w-100">
-                            <i data-feather="map-pin"></i> Manage Branches
-                        </a>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
+<!--<div class="row mb-4">-->
+<!--    <div class="col-12">-->
+<!--        <div class="card">-->
+<!--            <div class="card-header">-->
+<!--                <h5 class="mb-0">Quick Actions</h5>-->
+<!--            </div>-->
+<!--            <div class="card-body">-->
+<!--                <div class="row">-->
+<!--                    {% if current_user.has_permission('bin_scanning') %}-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <a href="{{ url_for('bin_scanning') }}" class="btn btn-outline-primary w-100">-->
+<!--                            <i data-feather="search"></i> Scan Bin-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                    {% endif %}-->
+<!--                    {% if current_user.has_permission('label_printing') %}-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <a href="{{ url_for('label_printing') }}" class="btn btn-outline-success w-100">-->
+<!--                            <i data-feather="printer"></i> Print Labels-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                    {% endif %}-->
+<!--                    {% if current_user.has_permission('bin_scanning') or current_user.has_permission('grpo') %}-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <button class="btn btn-outline-warning w-100" onclick="startQuickScan()">-->
+<!--                            <i data-feather="camera"></i> Quick Scan-->
+<!--                        </button>-->
+<!--                    </div>-->
+<!--                    {% endif %}-->
+<!--                </div>-->
+<!--                -->
+<!--                {% if current_user.has_permission('user_management') or current_user.role in ['admin', 'manager'] %}-->
+<!--                <hr>-->
+<!--                <div class="row">-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <form action="{{ url_for('sync_sap_data') }}" method="POST" style="display: inline;">-->
+<!--                            <button type="submit" class="btn btn-outline-primary w-100" onclick="return confirm('This will sync warehouses, bins, and business partners from SAP B1. Continue?')">-->
+<!--                                <i data-feather="refresh-cw"></i> Sync SAP Data-->
+<!--                            </button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <a href="{{ url_for('user_management') }}" class="btn btn-outline-secondary w-100">-->
+<!--                            <i data-feather="users"></i> Manage Users-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                    <div class="col-md-4 mb-3">-->
+<!--                        <a href="{{ url_for('branch_management') }}" class="btn btn-outline-info w-100">-->
+<!--                            <i data-feather="map-pin"></i> Manage Branches-->
+<!--                        </a>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                {% endif %}-->
+<!--            </div>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</div>-->
 
 <!-- Recent Activity -->
 <div class="row">

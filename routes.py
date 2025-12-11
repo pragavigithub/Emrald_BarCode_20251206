@@ -5101,7 +5101,7 @@ def create_user():
     permissions = {}
     for screen in ['dashboard', 'grpo', 'inventory_transfer', 'serial_transfer', 'serial_item_transfer', 'batch_transfer', 
                    'direct_inventory_transfer', 'sales_delivery', 'pick_list', 'inventory_counting', 
-                   'bin_scanning', 'label_printing', 'user_management', 'qc_dashboard', 'multiple_grn', 'so_against_invoice']:
+                   'bin_scanning', 'label_printing', 'user_management', 'qc_dashboard', 'multiple_grn', 'so_against_invoice','item_tracking']:
         permissions[screen] = screen in request.form
     
     user.set_permissions(permissions)
@@ -5134,7 +5134,7 @@ def edit_user(user_id):
         permissions = {}
         for screen in ['dashboard', 'grpo', 'inventory_transfer', 'serial_transfer', 'serial_item_transfer', 'batch_transfer',
                        'direct_inventory_transfer', 'sales_delivery', 'pick_list', 'inventory_counting', 
-                       'bin_scanning', 'label_printing', 'user_management', 'qc_dashboard', 'multiple_grn', 'so_against_invoice']:
+                       'bin_scanning', 'label_printing', 'user_management', 'qc_dashboard', 'multiple_grn', 'so_against_invoice','item_tracking']:
             permissions[screen] = screen in request.form
         
         user.set_permissions(permissions)

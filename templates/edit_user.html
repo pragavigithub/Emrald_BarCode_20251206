@@ -95,10 +95,10 @@
                                     <input class="form-check-input" type="checkbox" id="dashboard" name="dashboard" {{ 'checked' if user.has_permission('dashboard') else '' }}>
                                     <label class="form-check-label" for="dashboard">Dashboard</label>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="grpo" name="grpo" {{ 'checked' if user.has_permission('grpo') else '' }}>
-                                    <label class="form-check-label" for="grpo">Goods Receipt PO</label>
-                                </div>
+<!--                                <div class="form-check">-->
+<!--                                    <input class="form-check-input" type="checkbox" id="grpo" name="grpo" {{ 'checked' if user.has_permission('grpo') else '' }}>-->
+<!--                                    <label class="form-check-label" for="grpo">Goods Receipt PO</label>-->
+<!--                                </div>-->
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="multiple_grn" name="multiple_grn" {{ 'checked' if user.has_permission('multiple_grn') else '' }}>
                                     <label class="form-check-label" for="multiple_grn">Multi GRN</label>
@@ -125,9 +125,13 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
+<!--                                <div class="form-check">-->
+<!--                                    <input class="form-check-input" type="checkbox" id="label_printing" name="label_printing" {{ 'checked' if user.has_permission('label_printing') else '' }}>-->
+<!--                                    <label class="form-check-label" for="label_printing">Label Printing</label>-->
+<!--                                </div>-->
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="label_printing" name="label_printing" {{ 'checked' if user.has_permission('label_printing') else '' }}>
-                                    <label class="form-check-label" for="label_printing">Label Printing</label>
+                                    <input class="form-check-input" type="checkbox" id="item_tracking" name="item_tracking" {{ 'checked' if user.has_permission('item_tracking') else '' }}>
+                                    <label class="form-check-label" for="item_tracking">Item Tracking</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="user_management" name="user_management" {{ 'checked' if user.has_permission('user_management') else '' }}>
@@ -139,7 +143,7 @@
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="bin_scanning" name="bin_scanning" {{ 'checked' if user.has_permission('bin_scanning') else '' }}>
-                                    <label class="form-check-label" for="bin_scanning">Bin Scanning</label>
+                                    <label class="form-check-label" for="bin_scanning">Bin Tracking</label>
                                 </div>
                             </div>
                         </div>

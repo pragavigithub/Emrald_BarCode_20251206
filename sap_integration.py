@@ -1097,10 +1097,10 @@ class SAPIntegration:
                            f"Items/ItemWarehouseInfoCollection/WarehouseCode eq '{warehouse_code}'")
 
             logging.debug(f"[DEBUG] Calling URL: {crossjoin_url}")
-            headers = {"Prefer": "odata.maxpagesize=300"}
+            headers = {"Prefer": "odata.maxpagesize=0"}
             crossjoin_response = self.session.get(crossjoin_url,headers=headers)
             logging.debug(f"[DEBUG] Status code: {crossjoin_response.status_code}")
-            logging.debug(f"[DEBUG] Response text: {crossjoin_response.text[:300]}")
+            logging.debug(f"[DEBUG] Response text: {crossjoin_response.text[:0]}")
 
             if crossjoin_response.status_code != 200:
                 logging.error(f"❌ Failed to get warehouse items: {crossjoin_response.status_code}")

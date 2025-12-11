@@ -64,17 +64,17 @@
                 {% if current_user.has_permission('multiple_grn') %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('multi_grn.index') }}">
-                        <i data-feather="layers"></i> Multi GRN
+                        <i data-feather="layers"></i> GRN
                     </a>
                 </li>
                 {% endif %}
-                {% if current_user.has_permission('so_against_invoice') %}
-                <li class="nav-item">
-                    <a class="nav-link" onclick="window.location.href='/so-against-invoice/'">
-                        <i data-feather="dollar-sign"></i> SO Against Invoice
-                    </a>
-                </li>
-                {% endif %}
+<!--                {% if current_user.has_permission('so_against_invoice') %}-->
+<!--                <li class="nav-item">-->
+<!--                    <a class="nav-link" onclick="window.location.href='/so-against-invoice/'">-->
+<!--                        <i data-feather="dollar-sign"></i> SO Against Invoice-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                {% endif %}-->
                 <!--                    {% if current_user.has_permission('inventory_transfer') %}-->
                 <!--                    <li class="nav-item">-->
                 <!--                        <a class="nav-link" href="{{ url_for('inventory_transfer') }}">-->
@@ -125,13 +125,63 @@
                     </ul>
                 </li>
                 {% endif %}
-                {% if current_user.has_permission('sales_delivery') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('sales_delivery.index') }}">
-                        <i data-feather="truck"></i> Sales Delivery
+                {% if current_user.has_permission('so_against_invoice')  or current_user.has_permission('sales_delivery') %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="salesDropdown" role="button"
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        <i data-feather="package"></i> Sales
                     </a>
+                    <ul class="dropdown-menu" aria-labelledby="salesDropdown">
+                        {% if current_user.has_permission('so_against_invoice') %}
+                        <li>
+                            <a class="dropdown-item" onclick="window.location.href='/so-against-invoice/'">
+                                <i data-feather="move" style="width: 16px; height: 16px;"></i> SO Against Invoice
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if current_user.has_permission('sales_delivery') %}
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('sales_delivery.index') }}">
+                                <i data-feather="check-square" style="width: 16px; height: 16px;"></i> SO Against Delivery
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
                 </li>
                 {% endif %}
+                {% if current_user.has_permission('bin_scanning') or  current_user.has_permission('item_tracking') %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="trackingDropdown" role="button"
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        <i data-feather="package"></i> Tracking Report
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="trackingDropdown">
+                        {% if current_user.has_permission('bin_scanning')%}
+                        <li>
+                            <a class="dropdown-item" class="nav-link"  href="{{ url_for('bin_scanning') }}">
+                                <i data-feather="move" style="width: 16px; height: 16px;"></i> Bin Tracking
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if current_user.has_permission('item_tracking') %}
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('item_tracking.index') }}">
+                                <i data-feather="check-square" style="width: 16px; height: 16px;"></i> Item Tracking
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+<!--                {% if current_user.has_permission('sales_delivery') %}-->
+<!--                <li class="nav-item">-->
+<!--                    <a class="nav-link" href="{{ url_for('sales_delivery.index') }}">-->
+<!--                        <i data-feather="truck"></i> Sales Delivery-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                {% endif %}-->
 <!--                {% if current_user.has_permission('pick_list') %}-->
 <!--                <li class="nav-item">-->
 <!--                    <a class="nav-link" href="{{ url_for('pick_list') }}">-->
@@ -139,13 +189,13 @@
 <!--                    </a>-->
 <!--                </li>-->
 <!--                {% endif %}-->
-                {% if current_user.has_permission('bin_scanning') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('bin_scanning') }}">
-                        <i data-feather="search"></i> Bin Scan
-                    </a>
-                </li>
-                {% endif %}
+<!--                {% if current_user.has_permission('bin_scanning') %}-->
+<!--                <li class="nav-item">-->
+<!--                    <a class="nav-link" href="{{ url_for('bin_scanning') }}">-->
+<!--                        <i data-feather="search"></i> Bin Scan-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                {% endif %}-->
                 {% if current_user.has_permission('qc_dashboard') %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('qc_dashboard') }}">
@@ -153,25 +203,26 @@
                     </a>
                 </li>
                 {% endif %}
-                {% if current_user.has_permission('item_tracking') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('item_tracking.index') }}">
-                        <i data-feather="search"></i> Item Tracking
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('label_printing') %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
-                       data-bs-toggle="dropdown">
-                        <i data-feather="printer"></i> Labels
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('label_printing') }}">Print Labels</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('barcode_reprint') }}">Reprint Labels</a></li>
-                    </ul>
-                </li>
-                {% endif %}
+
+<!--                {% if current_user.has_permission('item_tracking') %}-->
+<!--                <li class="nav-item">-->
+<!--                    <a class="nav-link" href="{{ url_for('item_tracking.index') }}">-->
+<!--                        <i data-feather="search"></i> Item Tracking-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                {% endif %}-->
+<!--                {% if current_user.has_permission('label_printing') %}-->
+<!--                <li class="nav-item dropdown">-->
+<!--                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"-->
+<!--                       data-bs-toggle="dropdown">-->
+<!--                        <i data-feather="printer"></i> Labels-->
+<!--                    </a>-->
+<!--                    <ul class="dropdown-menu">-->
+<!--                        <li><a class="dropdown-item" href="{{ url_for('label_printing') }}">Print Labels</a></li>-->
+<!--                        <li><a class="dropdown-item" href="{{ url_for('barcode_reprint') }}">Reprint Labels</a></li>-->
+<!--                    </ul>-->
+<!--                </li>-->
+<!--                {% endif %}-->
             </ul>
 
             <ul class="navbar-nav">
@@ -182,13 +233,13 @@
                     </a>
                 </li>
                 {% endif %}
-                {% if current_user.role == 'admin' %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('branch_management') }}">
-                        <i data-feather="git-branch"></i> Branches
-                    </a>
-                </li>
-                {% endif %}
+<!--                {% if current_user.role == 'admin' %}-->
+<!--                <li class="nav-item">-->
+<!--                    <a class="nav-link" href="{{ url_for('branch_management') }}">-->
+<!--                        <i data-feather="git-branch"></i> Branches-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                {% endif %}-->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                        data-bs-toggle="dropdown">
