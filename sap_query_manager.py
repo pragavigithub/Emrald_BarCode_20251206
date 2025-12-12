@@ -121,6 +121,11 @@ class SAPQueryManager:
                 "SqlCode": "Quantity_Check",
                 "SqlName": "Quantity_Check",
                 "SqlText": "SELECT T1.[OnHand], T0.[ItemCode], T0.[ManSerNum] FROM [OITM] T0  INNER JOIN [OITW] T1 ON T0.[ItemCode] = T1.[ItemCode] WHERE T1.[OnHand] >'0' AND  T1.[WhsCode] =:whCode AND  T0.[ItemCode] =:itemCode"
+            },
+            {
+                "SqlCode": "item_tracking",
+                "SqlName": "item_tracking",
+                "SqlText": "SELECT Distinct T0.[ItemCode], T1.[DistNumber] AS [SerialNumber],T0.[DocDate],T0.[DocEntry], T0.[DocNum], T0.[DocType], T0.[CardCode], T0.[CardName], T4.[WhsCode], T1.[AbsEntry] AS [SerialAbsEntry],T3.[ReleaseQty],T3.[Quantity] FROM [OITL] T0 INNER JOIN [ITL1] T3 ON T0.[LogEntry] = T3.[LogEntry] INNER JOIN [OSRN] T1 ON T3.[MdAbsEntry] = T1.[AbsEntry] LEFT JOIN [OBTQ] T4 ON T3.[MdAbsEntry] = T4.[MdAbsEntry] WHERE T1.[DistNumber] = :serialNumber ORDER BY T0.[DocDate], T0.[DocEntry]"
             }
         ]
     
