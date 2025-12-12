@@ -423,8 +423,8 @@ class SAPIntegration:
             payload = {
                 "ParamList": f"series='{series}'"
             }
-            
-            response = self.session.post(url, json=payload, timeout=30)
+            headers = {"Prefer": "odata.maxpagesize=0"}
+            response = self.session.post(url,headers=headers ,json=payload, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
