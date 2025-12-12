@@ -919,10 +919,10 @@ class SAPIntegration:
         try:
             url_sql = f"{self.base_url}/b1s/v1/SQLQueries('Get_Open_INVCNT_DocNum')/List"
             body = {"ParamList": f"series='{series}'"}
-            
+            headers = {"Prefer": "odata.maxpagesize=0"}
             logging.debug(f"🔍 Attempting SQL query Get_Open_INVCNT_DocNum: {url_sql} with series: {series}")
             
-            response = self.session.post(url_sql, json=body, timeout=30)
+            response = self.session.post(url_sql,headers=headers ,json=body, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
