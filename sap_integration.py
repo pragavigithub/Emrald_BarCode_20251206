@@ -6,6 +6,8 @@ from datetime import datetime
 import urllib.parse
 import urllib3
 
+from models import InventoryTransferItem
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -98,6 +100,8 @@ class SAPIntegration:
                 
                 if values:
                     result = values[0]
+                    print("result-->",result)
+                    itemName=result.get('ItemName')
                     batch_num = result.get('BatchNum', 'N')
                     serial_num = result.get('SerialNum', 'N')
                     manage_method = result.get('NonBatch_NonSerialMethod', 'N')
@@ -106,6 +110,7 @@ class SAPIntegration:
                     
                     return {
                         'success': True,
+                        'item_name':itemName,
                         'item_code': item_code,
                         'batch_required': batch_num == 'Y',
                         'serial_required': serial_num == 'Y',
@@ -1842,12 +1847,16 @@ class SAPIntegration:
             # -------------------------------------------------------
             # BASE STOCK TRANSFER LINE
             # -------------------------------------------------------
+            transfer_doc_items=InventoryTransferItem.query.filter_by(
+                        inventory_transfer_id=transfer_document.id,
+                        item_code=item.item_code
+                    ).first()
             line = {
                 "LineNum": index,
                 "ItemCode": item.item_code,
                 "Quantity": float(item.quantity),
-                "WarehouseCode": transfer_document.to_warehouse,
-                "FromWarehouseCode": transfer_document.from_warehouse,
+                "WarehouseCode": transfer_doc_items.to_warehouse_code,
+                "FromWarehouseCode": transfer_doc_items.from_warehouse_code,
                 "UoMCode": actual_uom
             }
 
@@ -1933,7 +1942,8 @@ class SAPIntegration:
             else:
                 line.pop("BatchNumbers", None)
                 line.pop("SerialNumbers", None)
-
+            print("item.from_bin000000",item.from_bin,"transfer_document.from_warehouse",transfer_document.from_warehouse)
+            print("item.to_bin00000",item.to_bin,"transfer_document.to_warehouse",transfer_doc_items.to_warehouse_code)
             # -------------------------------------------------------
             # BIN ALLOCATIONS
             # -------------------------------------------------------
@@ -1943,7 +1953,7 @@ class SAPIntegration:
                 if item.from_bin:
                     line["StockTransferLinesBinAllocations"].append({
                         "BinActionType": "batFromWarehouse",
-                        "BinAbsEntry": self.get_bin_abs_entry(item.from_bin, transfer_document.from_warehouse),
+                        "BinAbsEntry": self.get_bin_abs_entry(item.from_bin,transfer_doc_items.from_warehouse_code),
                         "Quantity": float(item.quantity),
                         "SerialAndBatchNumbersBaseLine": 0
                     })
@@ -1951,7 +1961,7 @@ class SAPIntegration:
                 if item.to_bin:
                     line["StockTransferLinesBinAllocations"].append({
                         "BinActionType": "batToWarehouse",
-                        "BinAbsEntry": self.get_bin_abs_entry(item.to_bin, transfer_document.to_warehouse),
+                        "BinAbsEntry": self.get_bin_abs_entry(item.to_bin, transfer_doc_items.to_warehouse_code),
                         "Quantity": float(item.quantity),
                         "SerialAndBatchNumbersBaseLine": 0
                     })

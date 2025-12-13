@@ -135,29 +135,29 @@
                                             <button class="btn btn-sm btn-primary" onclick="editItem({{ item.id }}, '{{ item.item_code }}', '{{ item.item_name }}', {{ item.quantity }}, '{{ item.unit_of_measure }}', '{{ item.from_bin }}', '{{ item.to_bin }}', '{{ item.batch_number or '' }}')">
                                                 <i data-feather="edit"></i>
                                             </button>
-                                            {% set from_wh = item.from_bin.split('-')[0] if item.from_bin and '-' in item.from_bin else (item.from_bin[:4] if item.from_bin else 'N/A') %}
-                                            {% set to_wh = item.to_bin.split('-')[0] if item.to_bin and '-' in item.to_bin else (item.to_bin[:4] if item.to_bin else 'N/A') %}
-                                            <button class="btn btn-sm btn-success" onclick="generateTransferQRLabel('{{ item.item_code }}', '{{ item.item_name }}', '{{ item.batch_number or '' }}', {{ transfer.id }}, '{{ transfer.transfer_request_number }}', '{{ from_wh }}', '{{ to_wh }}')">
-                                                <i data-feather="maximize"></i> QR
-                                            </button>
-                                            <button class="btn btn-sm btn-info" onclick="generateIndividualTransferQRLabels({{ item.id }}, '{{ item.item_code }}', '{{ item.item_name }}')">
-                                                <i data-feather="grid"></i> Print {{ item.quantity|int }} Labels
-                                            </button>
+<!--                                            {% set from_wh = item.from_bin.split('-')[0] if item.from_bin and '-' in item.from_bin else (item.from_bin[:4] if item.from_bin else 'N/A') %}-->
+<!--                                            {% set to_wh = item.to_bin.split('-')[0] if item.to_bin and '-' in item.to_bin else (item.to_bin[:4] if item.to_bin else 'N/A') %}-->
+<!--                                            <button class="btn btn-sm btn-success" onclick="generateTransferQRLabel('{{ item.item_code }}', '{{ item.item_name }}', '{{ item.batch_number or '' }}', {{ transfer.id }}, '{{ transfer.transfer_request_number }}', '{{ from_wh }}', '{{ to_wh }}')">-->
+<!--                                                <i data-feather="maximize"></i> QR-->
+<!--                                            </button>-->
+<!--                                            <button class="btn btn-sm btn-info" onclick="generateIndividualTransferQRLabels({{ item.id }}, '{{ item.item_code }}', '{{ item.item_name }}')">-->
+<!--                                                <i data-feather="grid"></i> Print {{ item.quantity|int }} Labels-->
+<!--                                            </button>-->
                                             <button class="btn btn-sm btn-danger" onclick="removeItem({{ item.id }})">
                                                 <i data-feather="trash-2"></i>
                                             </button>
                                         </div>
                                         {% else %}
-                                        <div class="btn-group">
-                                            {% set from_wh = item.from_bin.split('-')[0] if item.from_bin and '-' in item.from_bin else (item.from_bin[:4] if item.from_bin else 'N/A') %}
-                                            {% set to_wh = item.to_bin.split('-')[0] if item.to_bin and '-' in item.to_bin else (item.to_bin[:4] if item.to_bin else 'N/A') %}
-                                            <button class="btn btn-sm btn-success" onclick="generateTransferQRLabel('{{ item.item_code }}', '{{ item.item_name }}', '{{ item.batch_number or '' }}', {{ transfer.id }}, '{{ transfer.transfer_request_number }}', '{{ from_wh }}', '{{ to_wh }}')">
-                                                <i data-feather="maximize"></i> Print QR
-                                            </button>
-                                            <button class="btn btn-sm btn-info" onclick="generateIndividualTransferQRLabels({{ item.id }}, '{{ item.item_code }}', '{{ item.item_name }}')">
-                                                <i data-feather="grid"></i> Print {{ item.quantity|int }} Labels
-                                            </button>
-                                        </div>
+<!--                                        <div class="btn-group">-->
+<!--                                            {% set from_wh = item.from_bin.split('-')[0] if item.from_bin and '-' in item.from_bin else (item.from_bin[:4] if item.from_bin else 'N/A') %}-->
+<!--                                            {% set to_wh = item.to_bin.split('-')[0] if item.to_bin and '-' in item.to_bin else (item.to_bin[:4] if item.to_bin else 'N/A') %}-->
+<!--                                            <button class="btn btn-sm btn-success" onclick="generateTransferQRLabel('{{ item.item_code }}', '{{ item.item_name }}', '{{ item.batch_number or '' }}', {{ transfer.id }}, '{{ transfer.transfer_request_number }}', '{{ from_wh }}', '{{ to_wh }}')">-->
+<!--                                                <i data-feather="maximize"></i> Print QR-->
+<!--                                            </button>-->
+<!--                                            <button class="btn btn-sm btn-info" onclick="generateIndividualTransferQRLabels({{ item.id }}, '{{ item.item_code }}', '{{ item.item_name }}')">-->
+<!--                                                <i data-feather="grid"></i> Print {{ item.quantity|int }} Labels-->
+<!--                                            </button>-->
+<!--                                        </div>-->
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -1152,79 +1152,79 @@ function debounce(func, wait) {
 }
 
 // Individual QR Labels Generation for Transfer Items
-function generateIndividualTransferQRLabels(itemId, itemCode, itemName) {
-    console.log(`Generating individual QR labels for transfer item ${itemId}`);
-    
-    fetch(`/inventory_transfer/items/${itemId}/generate-qr-labels`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data.success || !data.labels || data.labels.length === 0) {
-                alert('No labels to generate for this item');
-                return;
-            }
-            
-            const labels = data.labels;
-            const modal = new bootstrap.Modal(document.getElementById('transferIndividualQRLabelsModal'));
-            const container = document.getElementById('transferIndividualQRLabelsContainer');
-            container.innerHTML = '';
-            
-            // Wait for QRCode library then generate codes
-            waitForQRCodeTransfer((loaded) => {
-                labels.forEach((label, index) => {
-                    const qrDiv = document.createElement('div');
-                    qrDiv.className = 'qr-label-item col-md-6 mb-3';
-                    
-                    const qrData = `TRANSFER:${label.item_code}|${label.transfer_number}|FROM:${label.from_warehouse}|TO:${label.to_warehouse}|UNIT:${label.unit_number}/${label.total_units}${label.batch_number ? '|BATCH:' + label.batch_number : ''}`;
-                    
-                    qrDiv.innerHTML = `
-                        <div class="text-center p-3 border rounded">
-                            <h6>${label.item_code} - ${label.item_name}</h6>
-                            <div class="qr-code-container mb-2"></div>
-                            <p class="mb-1"><strong>Transfer: ${label.transfer_number}</strong></p>
-                            <p class="mb-1"><strong>From: ${label.from_warehouse}</strong> (${label.from_bin})</p>
-                            <p class="mb-1"><strong>To: ${label.to_warehouse}</strong> (${label.to_bin})</p>
-                            ${label.batch_number ? `<p class="mb-1">Batch: ${label.batch_number}</p>` : ''}
-                            <p class="mb-0">Unit ${label.unit_number} of ${label.total_units}</p>
-                        </div>
-                    `;
-                    container.appendChild(qrDiv);
-                    
-                    // Get QR container for code generation
-                    const qrContainer = qrDiv.querySelector('.qr-code-container');
-                    
-                    // Generate QR code using qrcodejs
-                    if (loaded && typeof QRCode !== 'undefined') {
-                        try {
-                            new QRCode(qrContainer, {
-                                text: qrData,
-                                width: 200,
-                                height: 200,
-                                colorDark: '#000000',
-                                colorLight: '#ffffff',
-                                correctLevel: QRCode.CorrectLevel.H
-                            });
-                        } catch (error) {
-                            console.error('QR generation error:', error);
-                            qrContainer.innerHTML = `<p class="text-danger">Error generating QR: ${error.message}</p>`;
-                        }
-                    } else {
-                        qrContainer.innerHTML = `<p class="text-danger">QR library not loaded. Please do a hard refresh (Ctrl+Shift+R)</p>`;
-                    }
-                });
-                
-                modal.show();
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching transfer item for QR labels:', error);
-            alert(`Error loading QR labels: ${error.message}\n\nPlease check:\n1. Item exists\n2. You are logged in\n3. Check browser console for details`);
-        });
-}
+<!--function generateIndividualTransferQRLabels(itemId, itemCode, itemName) {-->
+<!--    console.log(`Generating individual QR labels for transfer item ${itemId}`);-->
+<!--    -->
+<!--    fetch(`/inventory_transfer/items/${itemId}/generate-qr-labels`)-->
+<!--        .then(response => {-->
+<!--            if (!response.ok) {-->
+<!--                throw new Error(`HTTP error! status: ${response.status}`);-->
+<!--            }-->
+<!--            return response.json();-->
+<!--        })-->
+<!--        .then(data => {-->
+<!--            if (!data.success || !data.labels || data.labels.length === 0) {-->
+<!--                alert('No labels to generate for this item');-->
+<!--                return;-->
+<!--            }-->
+<!--            -->
+<!--            const labels = data.labels;-->
+<!--            const modal = new bootstrap.Modal(document.getElementById('transferIndividualQRLabelsModal'));-->
+<!--            const container = document.getElementById('transferIndividualQRLabelsContainer');-->
+<!--            container.innerHTML = '';-->
+<!--            -->
+<!--            // Wait for QRCode library then generate codes-->
+<!--            waitForQRCodeTransfer((loaded) => {-->
+<!--                labels.forEach((label, index) => {-->
+<!--                    const qrDiv = document.createElement('div');-->
+<!--                    qrDiv.className = 'qr-label-item col-md-6 mb-3';-->
+<!--                    -->
+<!--                    const qrData = `TRANSFER:${label.item_code}|${label.transfer_number}|FROM:${label.from_warehouse}|TO:${label.to_warehouse}|UNIT:${label.unit_number}/${label.total_units}${label.batch_number ? '|BATCH:' + label.batch_number : ''}`;-->
+<!--                    -->
+<!--                    qrDiv.innerHTML = `-->
+<!--                        <div class="text-center p-3 border rounded">-->
+<!--                            <h6>${label.item_code} - ${label.item_name}</h6>-->
+<!--                            <div class="qr-code-container mb-2"></div>-->
+<!--                            <p class="mb-1"><strong>Transfer: ${label.transfer_number}</strong></p>-->
+<!--                            <p class="mb-1"><strong>From: ${label.from_warehouse}</strong> (${label.from_bin})</p>-->
+<!--                            <p class="mb-1"><strong>To: ${label.to_warehouse}</strong> (${label.to_bin})</p>-->
+<!--                            ${label.batch_number ? `<p class="mb-1">Batch: ${label.batch_number}</p>` : ''}-->
+<!--                            <p class="mb-0">Unit ${label.unit_number} of ${label.total_units}</p>-->
+<!--                        </div>-->
+<!--                    `;-->
+<!--                    container.appendChild(qrDiv);-->
+<!--                    -->
+<!--                    // Get QR container for code generation-->
+<!--                    const qrContainer = qrDiv.querySelector('.qr-code-container');-->
+<!--                    -->
+<!--                    // Generate QR code using qrcodejs-->
+<!--                    if (loaded && typeof QRCode !== 'undefined') {-->
+<!--                        try {-->
+<!--                            new QRCode(qrContainer, {-->
+<!--                                text: qrData,-->
+<!--                                width: 200,-->
+<!--                                height: 200,-->
+<!--                                colorDark: '#000000',-->
+<!--                                colorLight: '#ffffff',-->
+<!--                                correctLevel: QRCode.CorrectLevel.H-->
+<!--                            });-->
+<!--                        } catch (error) {-->
+<!--                            console.error('QR generation error:', error);-->
+<!--                            qrContainer.innerHTML = `<p class="text-danger">Error generating QR: ${error.message}</p>`;-->
+<!--                        }-->
+<!--                    } else {-->
+<!--                        qrContainer.innerHTML = `<p class="text-danger">QR library not loaded. Please do a hard refresh (Ctrl+Shift+R)</p>`;-->
+<!--                    }-->
+<!--                });-->
+<!--                -->
+<!--                modal.show();-->
+<!--            });-->
+<!--        })-->
+<!--        .catch(error => {-->
+<!--            console.error('Error fetching transfer item for QR labels:', error);-->
+<!--            alert(`Error loading QR labels: ${error.message}\n\nPlease check:\n1. Item exists\n2. You are logged in\n3. Check browser console for details`);-->
+<!--        });-->
+<!--}-->
 
 // Wait for QRCode library to load (for transfer)
 function waitForQRCodeTransfer(callback, timeout = 5000) {

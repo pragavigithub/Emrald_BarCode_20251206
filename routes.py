@@ -459,7 +459,7 @@ def get_invcnt_details():
                         counted=line.get('Counted', 'tNO'),
                         uom_code=line.get('UoMCode'),
                         bar_code=line.get('BarCode'),
-                        uom_counted_quantity=uom_counted_qty,
+                        #uom_counted_quantity=uom_counted_qty,
                         items_per_unit=line.get('ItemsPerUnit', 1),
                         counter_type=line.get('CounterType'),
                         counter_id=line.get('CounterID'),
@@ -572,7 +572,7 @@ def update_inventory_counting():
                             local_line.u_rack = line_data.get('U_Rack', local_line.u_rack)
                             local_line.u_level = line_data.get('U_Level', local_line.u_level)
                             # Update counted quantity and status
-                            local_line.uom_counted_quantity = safe_float(line_data.get('UoMCountedQuantity'), 0)
+                            #local_line.uom_counted_quantity = safe_float(line_data.get('UoMCountedQuantity'), 0)
                             local_line.counted = line_data.get('Counted', 'tNO')
                             # Calculate variance from quantities if not provided by SAP
                             if line_data.get('Variance') is not None:
@@ -602,7 +602,7 @@ def update_inventory_counting():
                                 counted=line_data.get('Counted', 'tNO'),
                                 uom_code=line_data.get('UoMCode', ''),
                                 bar_code=line_data.get('BarCode', ''),
-                                uom_counted_quantity=counted_qty,
+                                #uom_counted_quantity=counted_qty,
                                 items_per_unit=safe_float(line_data.get('ItemsPerUnit'), 1),
                                 variance=variance_val,
                                 counter_type=line_data.get('CounterType', ''),
@@ -664,7 +664,7 @@ def update_inventory_counting():
                             counted=line_data.get('Counted', 'tNO'),
                             uom_code=line_data.get('UoMCode', ''),
                             bar_code=line_data.get('BarCode', ''),
-                            uom_counted_quantity=counted_qty,
+                            #uom_counted_quantity=counted_qty,
                             items_per_unit=safe_float(line_data.get('ItemsPerUnit'), 1),
                             variance=variance_val,
                             counter_type=line_data.get('CounterType', ''),
@@ -755,7 +755,7 @@ def get_local_invcnt_details():
                 'Counted': line.counted,
                 'UoMCode': line.uom_code,
                 'BarCode': line.bar_code,
-                'UoMCountedQuantity': line.uom_counted_quantity,
+                #'UoMCountedQuantity': line.uom_counted_quantity,
                 'Variance': line.variance,
                 'ItemsPerUnit': line.items_per_unit,
                 'CounterType': line.counter_type,
@@ -2461,7 +2461,6 @@ def get_bincode(warehousecode):
 @app.route('/inventory_transfer/<int:transfer_id>', methods=['GET', 'POST'])
 @login_required
 def inventory_transfer_detail(transfer_id):
-
     transfer = InventoryTransfer.query.get_or_404(transfer_id)
     print("DEMEO add ->>>>>>>", transfer)
 
@@ -2494,12 +2493,12 @@ def inventory_transfer_detail(transfer_id):
         if request.is_json:
             try:
                 payload = request.get_json()
-                print("idu----->",payload)
+                print("idu----->", payload)
                 item_code = payload.get("item_code", "").strip()
                 item_name = payload.get("item_name", "").strip()
                 quantity = float(payload.get("quantity", 0))
                 from_whs = payload.get("from_warehouse", "").strip()
-                GRN_id = payload.get("grn_id", "").strip()        # 🔥 SCANNED GRN ID
+                GRN_id = payload.get("grn_id", "").strip()  # 🔥 SCANNED GRN ID
                 to_whs = payload.get("to_warehouse", "").strip()
                 from_bin = payload.get("from_bin", "").strip()
                 to_bin = payload.get("to_bin", "").strip()
@@ -2514,33 +2513,35 @@ def inventory_transfer_detail(transfer_id):
                         grn_id=GRN_id
                     ).first()
                     # SAP Item Lookup
-                    print(exists)
+                    #print(exists)
                     if exists == None:
                         item_details = sap.get_item_details(item_code)
+                        itemType = sap.validate_item_code(item_code)
+                        #print("item_details--+++",item_details)
                         actual_uom = item_details.get("InventoryUoM") if item_details else None
-
+                        #print("actual_uom---->",actual_uom)
                         docDetails = InventoryTransferRequestLine.query.filter_by(
-                            inventory_transfer_id=transfer_id,
-                            item_code=item_code
+                            inventory_transfer_id=transfer.id,
+                            item_code=itemType.get("item_code")
                         ).first()
-                   # Insert new record
+                    # Insert new record
                     remaining_qqty = docDetails.remaining_open_quantity - quantity;
-                    itemType=sap.validate_item_code(item_code)
-                    # print("docDetails test",docDetails.remaining_open_quantity,docDetails.from_warehouse_code,docDetails.warehouse_code,docDetails.uom_code,docDetails.uom_code)
-                    # print("rememei-->",remaining_qqty )
+
+                    #print("docDetails test",docDetails.remaining_open_quantity,docDetails.quantity,docDetails.from_warehouse_code,docDetails.warehouse_code,docDetails.uom_code)
+                    #print("rememei-->",remaining_qqty )
                     #print("itemType---->",itemType)
                     new_item = InventoryTransferItem(
                         inventory_transfer_id=transfer.id,
-                        item_code=item_code,
-                        item_name=item_name,
+                        item_code=itemType.get("item_code"),
+                        item_name=itemType.get("item_name"),
                         quantity=quantity,
                         grn_id=GRN_id,  # 🔥 Stored here
                         transferred_quantity=quantity,
-                        remaining_quantity=remaining_qqty ,
-                        unit_of_measure=docDetails.uom_code ,
-                        from_warehouse_code=docDetails.from_warehouse_code ,
-                        to_warehouse_code=docDetails.warehouse_code ,
-                        requested_quantity=docDetails.quantity ,
+                        remaining_quantity=remaining_qqty,
+                        unit_of_measure=docDetails.uom_code,
+                        from_warehouse_code=docDetails.from_warehouse_code,
+                        to_warehouse_code=docDetails.warehouse_code,
+                        requested_quantity=docDetails.quantity,
                         from_bin_location=from_bin,
                         to_bin_location=to_bin,
                         to_bin=to_bin,
@@ -2555,20 +2556,29 @@ def inventory_transfer_detail(transfer_id):
                         serial_required=itemType.get("serial_required"),
                         batch_required=itemType.get("batch_required")
                     )
-                    
+
                     db.session.add(new_item)
                     db.session.commit()
 
-                    updateTransScanStatus = TransferScanState.query.filter_by(
-                            transfer_id=transfer_id,
-                            grn_id=GRN_id,
-                            transfer_status = 'pending'
-                        ).all()
-                    if updateTransScanStatus:
-                        for row in updateTransScanStatus:
-                            row.transfer_status = 'transferred'
-                        db.session.commit()
-                    
+                    # updateTransScanStatus = TransferScanState.query.filter_by(
+                    #     transfer_id=transfer_id,
+                    #     grn_id=GRN_id,
+                    #     transfer_status='pending'
+                    # ).first();
+                    #
+                    # updateTransScanStatus.transfer_status = 'transferred'
+                    # update all scanned lines
+                    TransferScanState.query.filter(
+                        TransferScanState.transfer_id == transfer.id,
+                        TransferScanState.transfer_status == 'pending'
+                    ).update(
+                        {TransferScanState.transfer_status: 'verified'},
+                        synchronize_session=False
+                    )
+
+                    db.session.commit()
+                   # db.session.commit()
+
                     return jsonify({
                         "success": True,
                         "message": f"Item {item_code} added successfully",
@@ -2579,15 +2589,15 @@ def inventory_transfer_detail(transfer_id):
                             "from_warehouse": from_whs,
                             "to_warehouse": to_whs,
                             "uom": actual_uom
-                           }
-                        }), 200
-                    
+                        }
+                    }), 200
+
                 else:
                     return jsonify({
-                            "success": False,
-                            "message": f"GRN {GRN_id} already exists in this transfer!",
-                            "duplicate_grn": True,
-                            "grn_id": GRN_id
+                        "success": False,
+                        "message": f"GRN {GRN_id} already exists in this transfer!",
+                        "duplicate_grn": True,
+                        "grn_id": GRN_id
                     }), 400
                 # -----------------------------------------------------------
 
@@ -2705,7 +2715,7 @@ def inventory_transfer_detail(transfer_id):
 
                 remaining_qty = docDetails.remaining_open_quantity - quantity
                 itemType = sap.validate_item_code(item_code)
-                print("ItemType------->",itemType.serial_num)
+                print("ItemType------->", itemType.serial_num)
                 # ======================================================
                 # INSERT NEW LINE ITEM INTO InventoryTransferItem
                 # ======================================================
@@ -2729,11 +2739,11 @@ def inventory_transfer_detail(transfer_id):
                     sap_line_num=docDetails.line_num,
                     sap_doc_entry=docDetails.sap_doc_entry,
                     line_status=docDetails.line_status,
-                   serial_manged=itemType.get("serial_num"),
-                   batch_manage=itemType.get("batch_num"),
-                   non_batch_non_serial=itemType.get("manage_method"),
-                   serial_required=itemType.get("serial_required"),
-                   batch_required=itemType.get("batch_required")
+                    serial_manged=itemType.get("serial_num"),
+                    batch_manage=itemType.get("batch_num"),
+                    non_batch_non_serial=itemType.get("manage_method"),
+                    serial_required=itemType.get("serial_required"),
+                    batch_required=itemType.get("batch_required")
                 )
 
                 db.session.add(new_item)
@@ -2742,16 +2752,15 @@ def inventory_transfer_detail(transfer_id):
                 # ======================================================
                 # UPDATE TransferScanState → transfer_status
                 # ======================================================
-                if GRN_id:
-                    updateTransScanStatus = TransferScanState.query.filter_by(
-                        transfer_id=transfer_id,
-                        grn_id=GRN_id,
-                        transfer_status='pending'
-                    ).first()
+                TransferScanState.query.filter(
+                    TransferScanState.transfer_id == transfer.id,
+                    TransferScanState.transfer_status == 'pending'
+                ).update(
+                    {TransferScanState.transfer_status: 'verified'},
+                    synchronize_session=False
+                )
 
-                    if updateTransScanStatus:
-                        updateTransScanStatus.transfer_status = "transferred"
-                        db.session.commit()
+                db.session.commit()
 
                 flash(f"Item {item_code} added successfully!", "success")
                 return redirect(url_for("inventory_transfer_detail", transfer_id=transfer_id))
