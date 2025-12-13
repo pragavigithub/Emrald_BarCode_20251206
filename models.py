@@ -189,13 +189,13 @@ class InventoryTransferItem(db.Model):
     requested_quantity = db.Column(db.Float, nullable=False)  # Original requested quantity
     transferred_quantity = db.Column(db.Float, default=0)  # Actually transferred quantity
     remaining_quantity = db.Column(db.Float, nullable=False)  # Remaining to transfer
-    unit_of_measure = db.Column(db.String(10), nullable=False)
-    from_bin = db.Column(db.String(20), nullable=True)  # Made nullable for better compatibility
-    to_bin = db.Column(db.String(20), nullable=True)    # Made nullable for better compatibility
+    unit_of_measure = db.Column(db.String(50), nullable=False)
+    from_bin = db.Column(db.String(50), nullable=True)  # Made nullable for better compatibility
+    to_bin = db.Column(db.String(50), nullable=True)    # Made nullable for better compatibility
     from_bin_location = db.Column(db.String(50), nullable=True)  # New field for detailed bin location
     to_bin_location = db.Column(db.String(50), nullable=True)    # New field for detailed bin location
-    from_warehouse_code = db.Column(db.String(20), nullable=True)  # SAP FromWarehouseCode
-    to_warehouse_code = db.Column(db.String(20), nullable=True)  # SAP WarehouseCode (destination)
+    from_warehouse_code = db.Column(db.String(50), nullable=True)  # SAP FromWarehouseCode
+    to_warehouse_code = db.Column(db.String(50), nullable=True)  # SAP WarehouseCode (destination)
     batch_number = db.Column(db.String(50), nullable=True)
     available_batches = db.Column(db.Text, nullable=True)  # JSON list of available batches
     scanned_batches = db.Column(db.Text, nullable=True)  # JSON array of {batch_number, qty} for SAP BatchNumbers
@@ -205,11 +205,11 @@ class InventoryTransferItem(db.Model):
     # SAP B1 Line Fields
     sap_line_num = db.Column(db.Integer, nullable=True)  # SAP LineNum
     sap_doc_entry = db.Column(db.Integer, nullable=True)  # SAP DocEntry reference
-    line_status = db.Column(db.String(20), nullable=True)  # SAP LineStatus (bost_Open, bost_Close)
+    line_status = db.Column(db.String(50), nullable=True)  # SAP LineStatus (bost_Open, bost_Close)
 
-    serial_manged=db.Column(db.String(20), nullable=True)
-    batch_manage=db.Column(db.String(20), nullable=True)
-    non_batch_non_serial=db.Column(db.String(20), nullable=True)
+    serial_manged=db.Column(db.String(50), nullable=True)
+    batch_manage=db.Column(db.String(50), nullable=True)
+    non_batch_non_serial=db.Column(db.String(50), nullable=True)
 
     batch_required=db.Column(db.Boolean, default=True)
     serial_required=db.Column(db.Boolean, default=True)
