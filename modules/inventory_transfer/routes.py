@@ -2441,9 +2441,9 @@ def api_scan_qr_label():
         existing_grn = TransferScanState.query.filter_by(
             transfer_id=transfer_id,
             grn_id=grn_id,
-            transfer_status = 'transferred'
+            transfer_status = 'verified'
         ).first()
-        print("existing_grn-1-->",existing_grn)
+        #print("existing_grn-1-->",existing_grn)
         if existing_grn:
             return jsonify({
                 'success': False,
@@ -2461,9 +2461,9 @@ def api_scan_qr_label():
             transfer_id=transfer_id,
             item_code=item_code,
             pack_key=pack_key,
-            transfer_status='transferred'
+            transfer_status='verified'
         ).first()
-        print("existing_pack 2-->",existing_pack)
+        #print("existing_pack 2-->",existing_pack)
         if existing_pack:
             return jsonify({
                 'success': False,
